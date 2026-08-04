@@ -1,0 +1,3390 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark light">
+<meta name="theme-color" content="#0b1416">
+<meta name="referrer" content="no-referrer">
+<title>Cell Ledger — Nervos DAO portfolio scanner</title>
+<style>
+:root{
+  --ink:#0b1416;
+  --panel:#101d20;
+  --panel-2:#16272b;
+  --panel-3:#1b3035;
+  --line:#1f383d;
+  --line-soft:#193034;
+  --text:#dcebe8;
+  --text-2:#a9c4c0;
+  --muted:#7a9895;
+  --gold:#e0a83c;
+  --gold-dim:#7a5c1f;
+  --mint:#46d6a4;
+  --mint-dim:#1e5f49;
+  --violet:#9d8ae8;
+  --violet-dim:#3d3470;
+  --rose:#ef6f5c;
+  --rose-dim:#65281f;
+  --amber:#e8a13a;
+  --focus:#7fe3c4;
+  --radius:12px;
+  --radius-sm:8px;
+  --tap:44px;
+  --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --shadow:0 1px 0 rgba(255,255,255,.03) inset, 0 8px 24px rgba(0,0,0,.35);
+}
+html[data-theme="light"]{
+  --ink:#eef3f1;
+  --panel:#ffffff;
+  --panel-2:#f3f7f5;
+  --panel-3:#e6efec;
+  --line:#cbdad6;
+  --line-soft:#dde8e5;
+  --text:#0f2124;
+  --text-2:#33504f;
+  --muted:#5d7a77;
+  --gold:#8a5f0c;
+  --gold-dim:#e6d3a5;
+  --mint:#0d7a55;
+  --mint-dim:#bde5d5;
+  --violet:#5344a8;
+  --violet-dim:#d6d0f2;
+  --rose:#b5341f;
+  --rose-dim:#f3d2cb;
+  --amber:#96650d;
+  --focus:#0d7a55;
+  --shadow:0 1px 2px rgba(16,40,38,.06), 0 8px 24px rgba(16,40,38,.08);
+}
+
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;max-width:100%}
+/* clip, not hidden: overflow-x:hidden would turn body into a scroll container
+   and silently stop position:sticky from ever pinning the scan bar */
+body{overflow-x:clip}
+body{
+  background:var(--ink);
+  color:var(--text);
+  font-family:var(--sans);
+  font-size:16px;
+  line-height:1.5;
+  -webkit-text-size-adjust:100%;
+  padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+body::before{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+  background:radial-gradient(90% 50% at 50% -10%, rgba(70,214,164,.10), transparent 70%);
+}
+.wrap{position:relative;z-index:1;max-width:820px;margin:0 auto;padding:14px 14px 120px}
+@media(min-width:1080px){
+  .wrap{max-width:1240px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,430px);gap:26px;align-items:start;padding-top:24px}
+  .wrap>.full{grid-column:1 / -1}
+  .rail{position:sticky;top:24px;display:flex;flex-direction:column;gap:14px}
+}
+
+button,input,select,textarea{font:inherit;color:inherit}
+button{background:none;border:0;cursor:pointer;-webkit-tap-highlight-color:transparent}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:4px}
+[hidden]{display:none !important}
+
+/* ---------- type utilities ---------- */
+.eyebrow{
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;
+  color:var(--muted);display:block;
+}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.hash{
+  font-family:var(--mono);font-size:12px;word-break:break-all;overflow-wrap:anywhere;
+  color:var(--text-2);
+}
+.dim{color:var(--muted)}
+
+/* ---------- masthead ---------- */
+.masthead{display:flex;gap:12px;align-items:flex-start;padding:4px 2px 16px;border-bottom:1px solid var(--line);margin-bottom:16px}
+.mark{
+  flex:0 0 auto;width:38px;height:38px;border-radius:9px;position:relative;
+  background:linear-gradient(160deg,var(--panel-3),var(--panel));
+  border:1px solid var(--line);overflow:hidden;
+}
+.mark i{position:absolute;display:block;background:var(--mint)}
+.mark i:nth-child(1){left:8px;top:8px;width:9px;height:9px;border-radius:2px}
+.mark i:nth-child(2){left:21px;top:8px;width:9px;height:9px;border-radius:2px;background:var(--gold);opacity:.85}
+.mark i:nth-child(3){left:8px;top:21px;width:9px;height:9px;border-radius:2px;background:var(--violet);opacity:.7}
+.mark i:nth-child(4){left:21px;top:21px;width:9px;height:9px;border-radius:2px;background:var(--line);border:1px solid var(--mint-dim)}
+.masthead h1{margin:0;font-size:19px;font-weight:750;letter-spacing:-.02em;line-height:1.2}
+.masthead p{margin:4px 0 0;font-size:13px;color:var(--muted);max-width:60ch}
+
+/* ---------- panels ---------- */
+.panel{
+  background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+  padding:14px;margin-bottom:14px;box-shadow:var(--shadow);
+}
+.panel>h2{
+  margin:0 0 10px;font-size:13px;font-weight:700;letter-spacing:.01em;
+  display:flex;align-items:center;gap:8px;
+}
+.panel.flush{padding:0;overflow:hidden}
+
+details.fold{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);margin-bottom:14px;box-shadow:var(--shadow)}
+details.fold>summary{
+  list-style:none;cursor:pointer;padding:0 14px;min-height:var(--tap);
+  display:flex;align-items:center;gap:10px;font-size:13.5px;font-weight:650;
+}
+details.fold>summary::-webkit-details-marker{display:none}
+details.fold>summary::after{
+  content:"";margin-left:auto;width:8px;height:8px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);
+  transform:rotate(45deg) translateY(-2px);transition:transform .18s ease;
+}
+details.fold[open]>summary::after{transform:rotate(225deg) translateY(-1px)}
+details.fold>.foldbody{padding:2px 14px 14px;border-top:1px solid var(--line-soft)}
+
+/* ---------- forms ---------- */
+.field{margin-bottom:12px}
+.field>label{display:block;font-size:12px;font-weight:600;color:var(--text-2);margin-bottom:5px}
+.field .help{font-size:11.5px;color:var(--muted);margin-top:5px;line-height:1.45}
+input[type=text],input[type=url],input[type=number],select,textarea{
+  width:100%;min-height:var(--tap);padding:10px 12px;
+  background:var(--panel-2);border:1px solid var(--line);border-radius:var(--radius-sm);
+  color:var(--text);font-family:var(--mono);font-size:13.5px;
+}
+textarea{min-height:88px;line-height:1.5;resize:vertical}
+select{font-family:var(--sans);font-size:14px}
+input::placeholder,textarea::placeholder{color:var(--muted);opacity:.75}
+input:disabled,select:disabled,textarea:disabled{opacity:.5}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+.row>*{flex:1 1 150px;min-width:0}
+.check{display:flex;gap:10px;align-items:flex-start;min-height:var(--tap);padding:6px 0}
+.check input{width:20px;height:20px;flex:0 0 auto;margin-top:2px;accent-color:var(--mint)}
+.check span{font-size:13px;color:var(--text-2)}
+
+.btn{
+  min-height:var(--tap);padding:10px 16px;border-radius:var(--radius-sm);
+  border:1px solid var(--line);background:var(--panel-2);color:var(--text);
+  font-size:14px;font-weight:650;display:inline-flex;align-items:center;justify-content:center;gap:8px;
+}
+.btn:hover{border-color:var(--muted)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.primary{background:var(--mint);color:#06231a;border-color:var(--mint)}
+html[data-theme="light"] .btn.primary{color:#ffffff}
+.btn.danger{color:var(--rose);border-color:var(--rose-dim)}
+.btn.small{min-height:34px;padding:6px 11px;font-size:12.5px;font-weight:600}
+.btn.wide{width:100%}
+.btnrow{display:flex;gap:8px;flex-wrap:wrap}
+
+/* ---------- status / badges ---------- */
+.badge{
+  display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:999px;
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;
+  border:1px solid var(--line);color:var(--text-2);background:var(--panel-2);white-space:nowrap;
+}
+.badge .dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex:0 0 auto}
+.badge.ok{color:var(--mint);border-color:var(--mint-dim)}
+.badge.warn{color:var(--amber);border-color:var(--gold-dim)}
+.badge.bad{color:var(--rose);border-color:var(--rose-dim)}
+.badge.info{color:var(--violet);border-color:var(--violet-dim)}
+.badge.gold{color:var(--gold);border-color:var(--gold-dim)}
+
+.notice{
+  border:1px solid var(--line);border-left-width:3px;border-radius:var(--radius-sm);
+  padding:10px 12px;font-size:13px;line-height:1.5;background:var(--panel-2);margin-bottom:12px;color:var(--text-2);
+}
+.notice strong{color:var(--text);font-weight:650}
+.notice.warn{border-left-color:var(--amber)}
+.notice.bad{border-left-color:var(--rose)}
+.notice.ok{border-left-color:var(--mint)}
+.notice.info{border-left-color:var(--violet)}
+.notice.key{border-left-color:var(--gold)}
+
+.kv{display:grid;grid-template-columns:minmax(96px,auto) 1fr;gap:5px 12px;font-size:12.5px;align-items:baseline}
+.kv dt{color:var(--muted);font-family:var(--mono);font-size:11px;letter-spacing:.04em}
+.kv dd{margin:0;color:var(--text-2);word-break:break-word;overflow-wrap:anywhere}
+
+/* ---------- summary cards ---------- */
+.cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+@media(min-width:560px){.cards{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.card{
+  background:var(--panel-2);border:1px solid var(--line);border-radius:var(--radius-sm);
+  padding:10px 11px;min-width:0;
+}
+.card .lab{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:4px}
+.card .val{display:block;font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:17px;font-weight:650;letter-spacing:-.02em;line-height:1.25;overflow-wrap:anywhere}
+.card .sub{display:block;font-size:11px;color:var(--muted);margin-top:4px;line-height:1.35}
+.card.hero{grid-column:1/-1;background:linear-gradient(150deg,var(--panel-3),var(--panel-2))}
+.card.hero .val{font-size:26px;color:var(--gold)}
+.card .val.mint{color:var(--mint)}
+.card .val.violet{color:var(--violet)}
+.card .val.rose{color:var(--rose)}
+
+/* ---------- toolbar ---------- */
+.toolbar{display:flex;flex-direction:column;gap:8px}
+.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;-webkit-overflow-scrolling:touch;scrollbar-width:thin}
+.chip{
+  flex:0 0 auto;min-height:36px;padding:6px 12px;border-radius:999px;
+  border:1px solid var(--line);background:var(--panel-2);color:var(--text-2);
+  font-size:12.5px;font-weight:600;white-space:nowrap;
+}
+.chip[aria-pressed="true"]{background:var(--mint);border-color:var(--mint);color:#06231a}
+html[data-theme="light"] .chip[aria-pressed="true"]{color:#fff}
+.chip .n{font-family:var(--mono);opacity:.75;margin-left:5px;font-size:11px}
+
+/* ---------- position cards ---------- */
+.positions{display:flex;flex-direction:column;gap:10px}
+.pos{
+  background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+  overflow:hidden;box-shadow:var(--shadow);
+}
+.pos.demo{border-style:dashed}
+.pos-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:11px 12px 0}
+.pos-idx{font-family:var(--mono);font-size:11px;color:var(--muted);margin-left:auto}
+.pos-body{padding:10px 12px 12px}
+.amounts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:11px}
+.amt{min-width:0}
+.amt .lab{font-family:var(--mono);font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);display:block}
+.amt .v{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:15px;font-weight:650;letter-spacing:-.02em;word-break:break-all}
+.amt .v.gold{color:var(--gold)}
+.amt .v.mint{color:var(--mint)}
+.amt .u{font-size:10.5px;color:var(--muted);font-weight:400;margin-left:3px}
+
+/* signature element: the 180-epoch ruler */
+.ruler{margin:12px 0 10px}
+.ruler-scale{
+  position:relative;height:26px;border-left:1px solid var(--line);border-right:1px solid var(--line);
+  background:
+    repeating-linear-gradient(90deg, var(--line-soft) 0 1px, transparent 1px 10%);
+  border-radius:3px;
+}
+.ruler-fill{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,var(--mint-dim),var(--mint));opacity:.55;border-radius:3px 0 0 3px}
+.ruler-fill.violet{background:linear-gradient(90deg,var(--violet-dim),var(--violet))}
+.ruler-fill.gold{background:linear-gradient(90deg,var(--gold-dim),var(--gold))}
+.ruler-now{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--text);border-radius:2px}
+.ruler-base{height:1px;background:var(--line);margin-top:-1px}
+.ruler-legend{display:flex;justify-content:space-between;gap:10px;margin-top:6px;font-family:var(--mono);font-size:10.5px;color:var(--muted)}
+.ruler-legend b{color:var(--text-2);font-weight:600}
+.ruler-cap{font-size:11.5px;color:var(--text-2);margin-top:6px;line-height:1.45}
+
+.pos-meta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 12px;font-size:12px;margin-top:10px}
+.pos-meta .k{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);display:block}
+.pos-meta .v{color:var(--text-2);word-break:break-word}
+
+.copyline{display:flex;align-items:center;gap:6px;min-width:0;margin-top:8px}
+.copyline .hash{flex:1 1 auto;min-width:0;font-size:11.5px}
+.copybtn{
+  flex:0 0 auto;min-width:34px;min-height:34px;border:1px solid var(--line);border-radius:6px;
+  background:var(--panel-2);font-family:var(--mono);font-size:10.5px;color:var(--text-2);padding:0 8px;
+}
+.copybtn.copied{color:var(--mint);border-color:var(--mint-dim)}
+
+details.tech{border-top:1px solid var(--line-soft);margin-top:11px}
+details.tech>summary{list-style:none;cursor:pointer;min-height:40px;display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+details.tech>summary::-webkit-details-marker{display:none}
+details.tech>summary::after{content:"+";margin-left:auto;font-size:14px}
+details.tech[open]>summary::after{content:"–"}
+details.tech .techbody{padding-bottom:10px}
+.techgrp{margin-bottom:10px}
+.techgrp h4{margin:0 0 5px;font-family:var(--mono);font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.formula{
+  font-family:var(--mono);font-size:11px;line-height:1.6;background:var(--panel-2);
+  border:1px solid var(--line-soft);border-radius:6px;padding:8px 10px;color:var(--text-2);
+  word-break:break-all;overflow-wrap:anywhere;
+}
+.links{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.links a{
+  min-height:34px;display:inline-flex;align-items:center;padding:5px 10px;border-radius:6px;
+  border:1px solid var(--line);color:var(--text-2);text-decoration:none;font-size:12px;
+}
+.links a:hover{color:var(--mint);border-color:var(--mint-dim)}
+
+/* ---------- progress ---------- */
+.prog{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 12px;font-size:12px;margin-top:8px}
+@media(min-width:520px){.prog{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.prog div{display:flex;justify-content:space-between;gap:8px;border-bottom:1px dotted var(--line-soft);padding:3px 0}
+.prog .k{color:var(--muted);font-size:11px}
+.prog .v{font-family:var(--mono);font-variant-numeric:tabular-nums;color:var(--text-2)}
+.bar{height:4px;background:var(--panel-3);border-radius:2px;overflow:hidden;margin-top:10px}
+.bar i{display:block;height:100%;background:var(--mint);width:0;transition:width .25s ease}
+.bar.indet i{width:35%;animation:slide 1.1s ease-in-out infinite}
+@keyframes slide{0%{margin-left:-35%}100%{margin-left:100%}}
+
+.empty{text-align:center;padding:26px 14px;color:var(--muted);font-size:13.5px;line-height:1.6}
+.empty h3{margin:0 0 6px;font-size:15px;color:var(--text)}
+
+.sticky{
+  position:sticky;bottom:0;z-index:20;margin:0 -14px -120px;padding:10px 14px calc(10px + env(safe-area-inset-bottom));
+  background:linear-gradient(to top, var(--ink) 62%, transparent);
+}
+@media(min-width:1080px){.sticky{position:static;margin:0;padding:0;background:none}}
+
+.foot{margin-top:20px;padding-top:14px;border-top:1px solid var(--line);font-size:11.5px;color:var(--muted);line-height:1.6}
+
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation-duration:.001ms !important;animation-iteration-count:1 !important;transition-duration:.001ms !important}
+  .bar.indet i{width:100%;margin-left:0}
+}
+@media (prefers-color-scheme: light){
+  html:not([data-theme]){color-scheme:light}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="masthead full">
+    <div class="mark" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+    <div>
+      <h1>Cell Ledger</h1>
+      <p>A read-only viewer for live Nervos DAO cells. Enter a public CKB address; nothing is signed, sent or stored anywhere but your browser.</p>
+    </div>
+  </header>
+
+  <main>
+
+    <section class="panel" aria-labelledby="scan-h">
+      <h2 id="scan-h">Scan an address</h2>
+      <div class="notice key" id="keyNotice">
+        <strong>Never enter a private key or seed phrase.</strong> This viewer requires only a public CKB address. It cannot sign, withdraw, or move funds.
+      </div>
+      <div class="field">
+        <label for="addr">CKB address</label>
+        <input id="addr" type="text" inputmode="text" autocapitalize="off" autocorrect="off" spellcheck="false"
+               placeholder="ckb1qzda0cr08m85hc8jlnfp3zer7xulejywt49kt2rr0vthywaa50xwsqdnnw7q..." aria-describedby="addrHelp">
+        <div class="help" id="addrHelp">The entered address is the starting point. The scanner derives the account identifier from it and looks for DAO cells under every lock variant it can build from that identifier.</div>
+      </div>
+      <div id="addrStatus" hidden></div>
+      <div class="btnrow">
+        <button class="btn primary" id="scanBtn" type="button">Scan for DAO cells</button>
+        <button class="btn" id="cancelBtn" type="button" hidden>Cancel scan</button>
+        <button class="btn small" id="demoBtn" type="button">Load demo data</button>
+        <button class="btn small" id="clearBtn" type="button">Clear results</button>
+      </div>
+    </section>
+
+    <div class="rail">
+
+    <section class="panel" aria-labelledby="conn-h">
+      <h2 id="conn-h">Connection <span id="connBadge" class="badge"><span class="dot"></span>Not tested</span></h2>
+      <div class="row">
+        <div class="field" style="margin-bottom:8px">
+          <label for="network">Network</label>
+          <select id="network">
+            <option value="mainnet" selected>Mainnet (ckb)</option>
+            <option value="testnet">Testnet (ckt)</option>
+            <option value="custom">Custom</option>
+          </select>
+        </div>
+        <div class="field" style="margin-bottom:8px">
+          <label for="prefix">Address prefix</label>
+          <input id="prefix" type="text" value="ckb" autocapitalize="off" spellcheck="false">
+        </div>
+      </div>
+      <div class="field">
+        <label for="rpcUrl">RPC endpoint</label>
+        <input id="rpcUrl" type="url" inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false" value="https://mainnet.ckb.dev/rpc">
+        <div class="help">Local nodes work too, for example <span class="mono">http://127.0.0.1:8114</span> or <span class="mono">http://192.168.1.20:8114</span>.</div>
+      </div>
+      <div class="field">
+        <label for="indexerUrl">Indexer endpoint <span class="dim">— optional</span></label>
+        <input id="indexerUrl" type="url" inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Leave blank to use the RPC endpoint">
+        <div class="help">Only needed when your chain node does not serve the indexer methods.</div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="timeoutMs">Request timeout (ms)</label>
+          <input id="timeoutMs" type="number" min="1000" max="180000" step="500" value="20000">
+        </div>
+        <div class="field">
+          <label for="pageSize">Cells per page</label>
+          <input id="pageSize" type="number" min="10" max="1000" step="10" value="100">
+        </div>
+      </div>
+      <div class="btnrow">
+        <button class="btn" id="testBtn" type="button">Test connection</button>
+        <button class="btn small" id="resetBtn" type="button">Reset to defaults</button>
+        <button class="btn small" id="themeBtn" type="button">Light / dark</button>
+      </div>
+      <div id="connDetail" style="margin-top:12px"></div>
+    </section>
+
+    <details class="fold" id="advFold">
+      <summary>Advanced: scripts, limits and libraries</summary>
+      <div class="foldbody">
+        <div class="field">
+          <label for="daoCodeHash">Nervos DAO type script — code_hash</label>
+          <input id="daoCodeHash" type="text" spellcheck="false" value="0x82d76d1b75fe2fd9a27dfbaa65a039221a380d76c926f378d3f81cf3e7e13f2e">
+        </div>
+        <div class="row">
+          <div class="field">
+            <label for="daoHashType">hash_type</label>
+            <select id="daoHashType">
+              <option value="type" selected>type</option>
+              <option value="data">data</option>
+              <option value="data1">data1</option>
+              <option value="data2">data2</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="daoArgs">args</label>
+            <input id="daoArgs" type="text" spellcheck="false" value="0x">
+          </div>
+        </div>
+        <div class="help" style="margin:-4px 0 12px">These fields are editable only so a custom chain can be scanned. On mainnet and testnet the defaults are the official Nervos DAO script and should not be changed.</div>
+
+        <div class="field">
+          <label for="lockTable">Lock variants tried for the account identifier</label>
+          <textarea id="lockTable" spellcheck="false" rows="6"></textarea>
+          <div class="help">One per line: <span class="mono">id | code_hash | hash_type | args template | search mode</span>. The args template uses <span class="mono">{blake160}</span> for the 20-byte account identifier. A wrong entry can only cost you a wasted query — every returned cell is re-checked locally before it is counted.</div>
+        </div>
+
+        <div class="row">
+          <div class="field">
+            <label for="maxPages">Page limit per lock</label>
+            <input id="maxPages" type="number" min="1" max="500" step="1" value="40">
+          </div>
+          <div class="field">
+            <label for="concurrency">Parallel requests</label>
+            <input id="concurrency" type="number" min="1" max="8" step="1" value="6">
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="cccUrl">Optional CCC cross-check (pinned ESM URL)</label>
+          <input id="cccUrl" type="url" spellcheck="false" placeholder="https://esm.sh/@ckb-ccc/core@X.Y.Z">
+          <div class="help">Left blank on purpose. Address decoding is implemented in this file so it works offline from <span class="mono">file://</span>; if you paste a pinned <span class="mono">@ckb-ccc/core</span> build here, every decode is also run through CCC and any disagreement is reported instead of hidden.</div>
+        </div>
+        <div class="check">
+          <input type="checkbox" id="cccEnable">
+          <span>Use the CCC build above to cross-check address decoding</span>
+        </div>
+        <div id="depStatus" style="margin-top:8px"></div>
+      </div>
+    </details>
+
+    </div>
+
+    <section class="panel" id="identityPanel" hidden aria-labelledby="ident-h">
+      <h2 id="ident-h">Account identity <span id="coverageBadge" class="badge"></span></h2>
+      <div id="identityBody"></div>
+    </section>
+
+    <section class="panel" id="extraPanel" hidden aria-labelledby="extra-h">
+      <h2 id="extra-h">Add other addresses from the same wallet</h2>
+      <div class="field">
+        <label for="extraAddrs">One address per line</label>
+        <textarea id="extraAddrs" spellcheck="false" autocapitalize="off" placeholder="ckb1..."></textarea>
+        <div class="help">Anything you paste here is decoded, queried and de-duplicated alongside the resolved locks. Addresses you do not paste are not scanned and are not counted in any total.</div>
+      </div>
+      <button class="btn" id="rescanBtn" type="button">Rescan including these</button>
+    </section>
+
+    <section class="panel" id="progressPanel" hidden aria-labelledby="prog-h" aria-live="polite">
+      <h2 id="prog-h">Scan progress <span id="progBadge" class="badge"></span></h2>
+      <div class="prog" id="progGrid"></div>
+      <div class="bar" id="progBar"><i></i></div>
+      <div id="progNote" style="margin-top:10px;font-size:12px;color:var(--muted)"></div>
+    </section>
+
+    <section id="errorPanel" hidden aria-live="assertive"></section>
+
+    <section class="panel full" id="summaryPanel" hidden aria-labelledby="sum-h">
+      <h2 id="sum-h">Portfolio <span id="sourceBadge" class="badge"></span></h2>
+      <div class="cards" id="summaryCards"></div>
+      <div id="summaryNotes" style="margin-top:12px"></div>
+      <div class="btnrow" style="margin-top:12px">
+        <button class="btn small" id="exportJson" type="button">Export JSON</button>
+        <button class="btn small" id="exportCsv" type="button">Export CSV</button>
+      </div>
+    </section>
+
+    <section class="panel full" id="toolbarPanel" hidden aria-labelledby="tool-h">
+      <h2 id="tool-h">Filter</h2>
+      <div class="toolbar">
+        <div class="chips" id="filterChips" role="group" aria-label="Filter positions by state"></div>
+        <div class="row">
+          <div class="field" style="margin-bottom:0">
+            <label for="sortSel">Sort by</label>
+            <select id="sortSel">
+              <option value="principal">Largest principal</option>
+              <option value="compensation">Largest compensation</option>
+              <option value="newest">Newest deposit</option>
+              <option value="oldest">Oldest deposit</option>
+              <option value="maturity">Next maturity</option>
+              <option value="status">State</option>
+            </select>
+          </div>
+          <div class="field" style="margin-bottom:0">
+            <label for="searchInput">Search</label>
+            <input id="searchInput" type="text" spellcheck="false" autocapitalize="off" placeholder="tx hash, outpoint, address, args">
+          </div>
+        </div>
+        <div id="resultCount" class="eyebrow"></div>
+      </div>
+    </section>
+
+    <section class="full" id="resultsPanel" hidden aria-live="polite">
+      <div class="positions" id="positions"></div>
+    </section>
+
+    <details class="fold full" id="methodFold">
+      <summary>How this reads the chain</summary>
+      <div class="foldbody" id="methodBody"></div>
+    </details>
+
+    <p class="foot full">
+      Read-only. No wallet connection, no signing, no transaction construction, no analytics, no remote logging.
+      Requests go only to the RPC and indexer endpoints you configure. Compensation figures are estimates derived from
+      chain data, not guaranteed returns.
+    </p>
+
+  </main>
+
+  <div class="sticky full" id="stickyBar" hidden>
+    <button class="btn primary wide" id="stickyScan" type="button">Scan for DAO cells</button>
+  </div>
+
+</div>
+<script>
+"use strict";
+(function () {
+
+/* =====================================================================
+   1. CONSTANTS
+   ===================================================================== */
+
+var SHANNONS_PER_CKB = 100000000n;
+var LOCK_PERIOD_EPOCHS = 180n;
+var HEADER_DEP_MATURITY_EPOCHS = 4n;      /* a header can only be referenced 4 epochs later */
+var TARGET_EPOCH_SECONDS = 4 * 60 * 60;   /* CKB targets a 4 hour epoch */
+var MS_PER_YEAR = 365.2425 * 24 * 3600 * 1000;
+
+var DAO_SCRIPT = {
+  mainnet: { codeHash: "0x82d76d1b75fe2fd9a27dfbaa65a039221a380d76c926f378d3f81cf3e7e13f2e", hashType: "type", args: "0x" },
+  testnet: { codeHash: "0x82d76d1b75fe2fd9a27dfbaa65a039221a380d76c926f378d3f81cf3e7e13f2e", hashType: "type", args: "0x" }
+};
+
+var NETWORKS = {
+  mainnet: {
+    label: "Mainnet", prefix: "ckb", rpc: "https://mainnet.ckb.dev/rpc",
+    explorer: "https://explorer.nervos.org",
+    genesis: "0x92b197aa1fba0f63633922c61c92375c9c074a93e85963554f5499fe1450d0e5"
+  },
+  testnet: {
+    label: "Testnet", prefix: "ckt", rpc: "https://testnet.ckb.dev/rpc",
+    explorer: "https://pudge.explorer.nervos.org",
+    genesis: "0x10639e0895502b5688a6be8cf69460d76541bfa4821629d86d62ba0aae3f9606"
+  },
+  custom: { label: "Custom", prefix: "ckb", rpc: "", explorer: "", genesis: "" }
+};
+
+/* Lock scripts whose args carry the same secp256k1 blake160 account identifier.
+   `template` uses {blake160}. `mode` is the indexer script_search_mode.
+   `source` is shown in the UI so the provenance of each entry is visible. */
+var LOCK_REGISTRY = {
+  mainnet: [
+    { id: "sighash", name: "SECP256K1/blake160 (default lock)",
+      codeHash: "0x9bd7e06f3ecf4be0f2fcd2188b23f1b9fcc88e5d4b65a8637b17723bbda3cce8",
+      hashType: "type", template: "{blake160}", mode: "exact",
+      source: "RFC 0024 genesis script list" },
+    { id: "acp", name: "Anyone-can-pay",
+      codeHash: "0xd369597ff47f29fbc0d47d2e3775370d1250b85140c670e4718af712983a2354",
+      hashType: "type", template: "{blake160}", mode: "prefix",
+      source: "community-reported deployment" },
+    { id: "omnilock", name: "Omnilock (secp256k1 auth)",
+      codeHash: "0x9f3aeaf2fc439549cbc870c653374943af96a0658bd6b51be8d8983183e6f52f",
+      hashType: "type", template: "00{blake160}", mode: "prefix",
+      source: "RFC 0042 deployment" }
+  ],
+  testnet: [
+    { id: "sighash", name: "SECP256K1/blake160 (default lock)",
+      codeHash: "0x9bd7e06f3ecf4be0f2fcd2188b23f1b9fcc88e5d4b65a8637b17723bbda3cce8",
+      hashType: "type", template: "{blake160}", mode: "exact",
+      source: "RFC 0024 genesis script list" },
+    { id: "acp", name: "Anyone-can-pay",
+      codeHash: "0x3419a1c09eb2567f6552ee7a8ecffd64155cffe0f1796e6e61ec088d740c1356",
+      hashType: "type", template: "{blake160}", mode: "prefix",
+      source: "community-reported deployment" },
+    { id: "omnilock", name: "Omnilock (secp256k1 auth)",
+      codeHash: "0xf329effd1c475a2978453c8600e1eaf0bc2087ee093c3ee64cc96ec6847752cb",
+      hashType: "type", template: "00{blake160}", mode: "prefix",
+      source: "community-reported deployment" }
+  ]
+};
+LOCK_REGISTRY.custom = [];
+
+/* Locks that are recognised but whose args are NOT a plain public key hash,
+   so no wallet-wide variant can be derived from them. */
+var NON_DERIVABLE_LOCKS = {
+  "0x5c5069eb0857efc65e1bca0c07df34c31663b3622fd3876c876320fc9634e2a8":
+    "SECP256K1/multisig — args are a hash of the multisig configuration, not of a single public key"
+};
+
+var SHORT_ADDRESS_CODE_HASH = {
+  "0x00": { codeHash: "0x9bd7e06f3ecf4be0f2fcd2188b23f1b9fcc88e5d4b65a8637b17723bbda3cce8", hashType: "type", name: "SECP256K1/blake160" },
+  "0x01": { codeHash: "0x5c5069eb0857efc65e1bca0c07df34c31663b3622fd3876c876320fc9634e2a8", hashType: "type", name: "SECP256K1/multisig" },
+  "0x02": { codeHash: null, hashType: "type", name: "Anyone-can-pay" }
+};
+
+var STATES = {
+  deposited:              { label: "Deposited",   badge: "ok",   order: 0 },
+  "withdrawing-mature":   { label: "Mature",      badge: "gold", order: 1 },
+  "withdrawing-immature": { label: "Withdrawing", badge: "info", order: 2 },
+  "unknown-or-invalid":   { label: "Unresolved",  badge: "bad",  order: 3 }
+};
+
+/* =====================================================================
+   2. UTILITIES
+   ===================================================================== */
+
+function $(id) { return document.getElementById(id); }
+
+function esc(v) {
+  if (v === null || v === undefined) return "";
+  return String(v)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
+function isHex(s) { return typeof s === "string" && /^0x([0-9a-fA-F]{2})*$/.test(s); }
+
+function hexToBytes(hex) {
+  if (!isHex(hex)) throw new Error("Not a valid 0x-prefixed hex string: " + String(hex));
+  var body = hex.slice(2), out = new Uint8Array(body.length / 2);
+  for (var i = 0; i < out.length; i++) out[i] = parseInt(body.substr(i * 2, 2), 16);
+  return out;
+}
+
+function bytesToHex(bytes) {
+  var s = "0x";
+  for (var i = 0; i < bytes.length; i++) s += bytes[i].toString(16).padStart(2, "0");
+  return s;
+}
+
+/* little-endian unsigned 64-bit integer out of a byte array */
+function leU64(bytes, offset) {
+  if (bytes.length < offset + 8) throw new Error("Need 8 bytes at offset " + offset);
+  var v = 0n;
+  for (var i = 7; i >= 0; i--) v = (v << 8n) | BigInt(bytes[offset + i]);
+  return v;
+}
+
+function leU64Hex(hex) { return leU64(hexToBytes(hex), 0); }
+
+/* CKB RPC returns quantities as 0x-prefixed big-endian hex numbers */
+function numHexToBig(h) {
+  if (typeof h === "bigint") return h;
+  if (typeof h === "number") return BigInt(h);
+  if (typeof h !== "string" || !/^0x[0-9a-fA-F]+$/.test(h)) throw new Error("Not a hex quantity: " + String(h));
+  return BigInt(h);
+}
+
+function bigToNumHex(v) { return "0x" + v.toString(16); }
+
+function fmtCkb(shannons, decimals) {
+  if (shannons === null || shannons === undefined) return "—";
+  var d = decimals === undefined ? 4 : decimals;
+  var neg = shannons < 0n;
+  var v = neg ? -shannons : shannons;
+  var whole = v / SHANNONS_PER_CKB;
+  var frac = (v % SHANNONS_PER_CKB).toString().padStart(8, "0");
+  if (d < 8) frac = frac.slice(0, d);
+  frac = frac.replace(/0+$/, "");
+  var w = whole.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return (neg ? "-" : "") + w + (frac ? "." + frac : "");
+}
+
+function fmtInt(v) { return String(v).replace(/\B(?=(\d{3})+(?!\d))/g, ","); }
+
+function midTrunc(s, head, tail) {
+  s = String(s);
+  if (s.length <= head + tail + 3) return s;
+  return s.slice(0, head) + "…" + s.slice(s.length - tail);
+}
+
+function fmtDate(ms) {
+  if (ms === null || ms === undefined) return "—";
+  var d = new Date(Number(ms));
+  if (isNaN(d.getTime())) return "—";
+  return d.toISOString().slice(0, 16).replace("T", " ") + " UTC";
+}
+
+function fmtDuration(seconds) {
+  seconds = Math.max(0, Math.round(Number(seconds)));
+  var d = Math.floor(seconds / 86400);
+  var h = Math.floor((seconds % 86400) / 3600);
+  if (d >= 1) return d + "d " + h + "h";
+  var m = Math.floor((seconds % 3600) / 60);
+  return h + "h " + m + "m";
+}
+
+function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+/* bounded-concurrency worker pool with cancellation */
+async function pool(items, limit, worker, signal) {
+  var i = 0, results = new Array(items.length), n = Math.max(1, Math.min(limit, items.length || 1));
+  async function run() {
+    for (;;) {
+      if (signal && signal.aborted) throw new DOMException("Scan cancelled", "AbortError");
+      var idx = i++;
+      if (idx >= items.length) return;
+      results[idx] = await worker(items[idx], idx);
+    }
+  }
+  var runners = [];
+  for (var k = 0; k < n; k++) runners.push(run());
+  await Promise.all(runners);
+  return results;
+}
+
+/* =====================================================================
+   3. BECH32 / BECH32M  (RFC 0021 CKB address encoding)
+   ===================================================================== */
+
+var B32_CHARSET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l";
+var BECH32_CONST = 1;
+var BECH32M_CONST = 0x2bc830a3;
+
+function b32Polymod(values) {
+  var GEN = [0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3];
+  var chk = 1;
+  for (var p = 0; p < values.length; ++p) {
+    var top = chk >> 25;
+    chk = ((chk & 0x1ffffff) << 5) ^ values[p];
+    for (var j = 0; j < 5; ++j) if ((top >> j) & 1) chk ^= GEN[j];
+  }
+  return chk >>> 0;
+}
+
+function b32HrpExpand(hrp) {
+  var out = [], i;
+  for (i = 0; i < hrp.length; i++) out.push(hrp.charCodeAt(i) >> 5);
+  out.push(0);
+  for (i = 0; i < hrp.length; i++) out.push(hrp.charCodeAt(i) & 31);
+  return out;
+}
+
+function bech32Decode(str) {
+  if (typeof str !== "string" || str.length < 8) throw new Error("Address is too short to be bech32.");
+  if (str.length > 1023) throw new Error("Address is too long.");
+  var hasLower = /[a-z]/.test(str), hasUpper = /[A-Z]/.test(str);
+  if (hasLower && hasUpper) throw new Error("Address mixes upper and lower case, which bech32 does not allow.");
+  var s = str.toLowerCase();
+  var pos = s.lastIndexOf("1");
+  if (pos < 1 || pos + 7 > s.length) throw new Error("Address is missing a valid separator.");
+  var hrp = s.slice(0, pos), dataPart = s.slice(pos + 1), data = [];
+  for (var i = 0; i < dataPart.length; i++) {
+    var v = B32_CHARSET.indexOf(dataPart.charAt(i));
+    if (v === -1) throw new Error("Address contains a character that is not in the bech32 alphabet: " + dataPart.charAt(i));
+    data.push(v);
+  }
+  for (var k = 0; k < hrp.length; k++) {
+    var c = hrp.charCodeAt(k);
+    if (c < 33 || c > 126) throw new Error("Address prefix contains an invalid character.");
+  }
+  var chk = b32Polymod(b32HrpExpand(hrp).concat(data));
+  var spec = chk === BECH32_CONST ? "bech32" : (chk === BECH32M_CONST ? "bech32m" : null);
+  if (!spec) throw new Error("Address checksum does not verify. Check for a typo or a truncated address.");
+  return { hrp: hrp, data: data.slice(0, data.length - 6), spec: spec };
+}
+
+function convertBits(data, from, to, pad) {
+  var acc = 0, bits = 0, out = [], maxv = (1 << to) - 1;
+  for (var i = 0; i < data.length; i++) {
+    var value = data[i];
+    if (value < 0 || (value >> from) !== 0) throw new Error("Invalid value while regrouping address bits.");
+    acc = (acc << from) | value;
+    bits += from;
+    while (bits >= to) { bits -= to; out.push((acc >> bits) & maxv); }
+  }
+  if (pad) { if (bits > 0) out.push((acc << (to - bits)) & maxv); }
+  else if (bits >= from || ((acc << (to - bits)) & maxv)) throw new Error("Address payload has invalid padding.");
+  return out;
+}
+
+var HASH_TYPE_BY_BYTE = { 0: "data", 1: "type", 2: "data1", 4: "data2" };
+
+/* =====================================================================
+   4. ADDRESS DECODING
+   ===================================================================== */
+
+function decodeAddress(raw, expectedPrefix, network) {
+  var addr = String(raw || "").trim();
+  if (!addr) throw new Error("Enter a CKB address.");
+  if (/^0x/i.test(addr)) throw new Error("That looks like a hex value, not a CKB address. Addresses start with a prefix such as ckb or ckt.");
+  if (/\s/.test(addr)) throw new Error("The address contains whitespace. Paste it without line breaks or spaces.");
+
+  var dec = bech32Decode(addr);
+  var payload = convertBits(dec.data, 5, 8, false);
+  if (payload.length < 2) throw new Error("Address payload is empty.");
+  var bytes = Uint8Array.from(payload);
+  var format = bytes[0];
+  var script, formatLabel, note = null;
+
+  if (format === 0x00) {
+    if (dec.spec !== "bech32m") throw new Error("Full addresses (format 0x00) must use the bech32m checksum. This one uses " + dec.spec + ".");
+    if (bytes.length < 34) throw new Error("Full address payload is too short to contain a code hash and hash type.");
+    var htByte = bytes[33];
+    if (!(htByte in HASH_TYPE_BY_BYTE)) throw new Error("Unknown hash_type byte 0x" + htByte.toString(16).padStart(2, "0") + " in the address.");
+    script = {
+      codeHash: bytesToHex(bytes.slice(1, 33)),
+      hashType: HASH_TYPE_BY_BYTE[htByte],
+      args: bytesToHex(bytes.slice(34))
+    };
+    formatLabel = "full (0x00, bech32m)";
+  } else if (format === 0x01) {
+    if (dec.spec !== "bech32") throw new Error("Short addresses (format 0x01) use the original bech32 checksum. This one uses " + dec.spec + ".");
+    if (bytes.length < 2) throw new Error("Short address payload is truncated.");
+    var idxHex = "0x" + bytes[1].toString(16).padStart(2, "0");
+    var entry = SHORT_ADDRESS_CODE_HASH[idxHex];
+    if (!entry) throw new Error("Short address uses code hash index " + idxHex + ", which is not a known system script.");
+    var codeHash = entry.codeHash;
+    if (!codeHash) {
+      var reg = (LOCK_REGISTRY[network] || []).filter(function (l) { return l.id === "acp"; })[0];
+      if (!reg) throw new Error("Anyone-can-pay short addresses cannot be decoded on this network because no anyone-can-pay code hash is configured.");
+      codeHash = reg.codeHash;
+      note = "Anyone-can-pay code hash taken from the configured lock table for " + network + ".";
+    }
+    script = { codeHash: codeHash, hashType: entry.hashType, args: bytesToHex(bytes.slice(2)) };
+    formatLabel = "short (0x01, deprecated) — " + entry.name;
+  } else if (format === 0x02 || format === 0x04) {
+    if (dec.spec !== "bech32") throw new Error("Deprecated full addresses (format 0x0" + format + ") use the original bech32 checksum.");
+    if (bytes.length < 33) throw new Error("Deprecated full address payload is too short.");
+    script = {
+      codeHash: bytesToHex(bytes.slice(1, 33)),
+      hashType: format === 0x02 ? "data" : "type",
+      args: bytesToHex(bytes.slice(33))
+    };
+    formatLabel = "full deprecated (0x0" + format + ", bech32)";
+  } else {
+    throw new Error("Address format byte 0x" + format.toString(16).padStart(2, "0") + " is not one this viewer understands.");
+  }
+
+  if (expectedPrefix && dec.hrp !== expectedPrefix) {
+    var hint = dec.hrp === "ckb" ? "That is a mainnet address."
+             : dec.hrp === "ckt" ? "That is a testnet address." : "";
+    throw new Error("Address prefix is \u201c" + dec.hrp + "\u201d but the selected network expects \u201c" + expectedPrefix + "\u201d. " + hint + " Change the network above if that is what you meant.");
+  }
+
+  return {
+    address: addr, prefix: dec.hrp, spec: dec.spec, format: format,
+    formatLabel: formatLabel, script: script, note: note
+  };
+}
+
+/* =====================================================================
+   5. WALLET IDENTITY RESOLVER
+   ===================================================================== */
+
+function scriptKey(s) { return (s.codeHash + "|" + s.hashType + "|" + s.args).toLowerCase(); }
+
+function scriptsEqual(a, b) { return scriptKey(a) === scriptKey(b); }
+
+function WalletIdentityResolver(opts) {
+  this.network = opts.network;
+  this.prefix = opts.prefix;
+  this.registry = opts.registry || [];
+  this.entered = null;
+  this.extra = [];
+  this.userArgs = null;
+  this.userArgsSource = null;
+  this.method = "not run";
+  this.coverage = "single-lock";
+  this.scripts = [];
+  this.limitations = [];
+}
+
+WalletIdentityResolver.prototype.decodeEnteredAddress = function (raw) {
+  this.entered = decodeAddress(raw, this.prefix, this.network);
+  return this.entered;
+};
+
+WalletIdentityResolver.prototype.decodeExtraAddresses = function (lines) {
+  var self = this, out = [], errors = [];
+  (lines || []).forEach(function (line, n) {
+    var t = String(line || "").trim();
+    if (!t) return;
+    try { out.push(self.decodeExtraOne(t)); }
+    catch (e) { errors.push({ line: n + 1, text: t, message: e.message }); }
+  });
+  this.extra = out;
+  return { decoded: out, errors: errors };
+};
+
+WalletIdentityResolver.prototype.decodeExtraOne = function (t) {
+  return decodeAddress(t, this.prefix, this.network);
+};
+
+/* Pull the 20-byte secp256k1 blake160 account identifier out of a lock script,
+   using only the documented args layout of each known lock. */
+WalletIdentityResolver.prototype.extractUserArgs = function (script) {
+  var ch = script.codeHash.toLowerCase();
+  var args;
+  try { args = hexToBytes(script.args); } catch (e) { return null; }
+
+  for (var i = 0; i < this.registry.length; i++) {
+    var l = this.registry[i];
+    if (l.codeHash.toLowerCase() !== ch) continue;
+    if (l.template === "{blake160}") {
+      if (args.length < 20) return null;
+      return { hex: bytesToHex(args.slice(0, 20)), source: l.name, lockId: l.id };
+    }
+    if (l.template === "00{blake160}") {
+      if (args.length < 21 || args[0] !== 0x00) return null;
+      return { hex: bytesToHex(args.slice(1, 21)), source: l.name + " auth (flag 0x00)", lockId: l.id };
+    }
+  }
+  return null;
+};
+
+WalletIdentityResolver.prototype.resolveWalletScripts = function () {
+  if (!this.entered) throw new Error("Decode an address first.");
+  var self = this;
+  var list = [];
+  var seen = Object.create(null);
+
+  function push(script, mode, label, origin, sourceAddress) {
+    var k = scriptKey(script) + "|" + mode;
+    if (seen[k]) return;
+    seen[k] = true;
+    list.push({ script: script, mode: mode, label: label, origin: origin, address: sourceAddress || null });
+  }
+
+  push(this.entered.script, "exact", this.describeLock(this.entered.script), "entered address", this.entered.address);
+
+  this.userArgs = this.extractUserArgs(this.entered.script);
+  this.limitations = [];
+
+  if (this.userArgs) {
+    this.userArgsSource = this.userArgs.source;
+    var b160 = this.userArgs.hex.slice(2);
+    this.registry.forEach(function (l) {
+      var args = "0x" + l.template.replace("{blake160}", b160);
+      var s = { codeHash: l.codeHash, hashType: l.hashType, args: args };
+      if (scriptsEqual(s, self.entered.script)) return;
+      push(s, l.mode, l.name, "derived from account identifier");
+    });
+    this.method = "Account identifier taken from the entered lock args (" + this.userArgs.source +
+      "), then rebuilt into every lock variant in the configured table and queried by " +
+      "indexer script search (exact for fixed-length args, prefix where the lock appends its own options).";
+    this.coverage = list.length > 1 ? "user-args" : "single-lock";
+    this.limitations.push("Only the lock code hashes listed in the lock table were tried. A DAO cell held under any other lock — a lock this table does not know, a future deployment, or a wallet that derives multiple independent keys — is not in these results.");
+    this.limitations.push("CKB's standard indexer can search script args by exact value or by prefix, but it cannot search for args across different code hashes. There is no documented client-side call that returns every address of a wallet from one address, so wallet-wide coverage is not claimed.");
+  } else {
+    var known = NON_DERIVABLE_LOCKS[this.entered.script.codeHash.toLowerCase()];
+    this.userArgsSource = null;
+    this.method = "The entered lock's args are not a plain secp256k1 public key hash" +
+      (known ? " (" + known + ")" : " and its code hash is not in the lock table") +
+      ", so no other lock variant can be derived from it. Only this exact lock script was queried.";
+    this.coverage = "single-lock";
+    this.limitations.push("No account identifier could be extracted, so this is a single-lock scan. Any DAO cell held under a different address of the same wallet is not included.");
+  }
+
+  this.extra.forEach(function (d) {
+    push(d.script, "exact", self.describeLock(d.script) + " (pasted)", "pasted by you", d.address);
+    var ua = self.extractUserArgs(d.script);
+    if (ua) {
+      var b = ua.hex.slice(2);
+      self.registry.forEach(function (l) {
+        var s = { codeHash: l.codeHash, hashType: l.hashType, args: "0x" + l.template.replace("{blake160}", b) };
+        push(s, l.mode, l.name + " (from pasted address)", "derived from pasted address");
+      });
+    }
+  });
+
+  if (this.extra.length) {
+    this.coverage = this.coverage === "user-args" ? "user-args+manual" : "manual";
+    this.method += " " + this.extra.length + " address" + (this.extra.length === 1 ? " was" : "es were") +
+      " also pasted in and queried directly.";
+  }
+
+  this.scripts = list;
+  return list;
+};
+
+WalletIdentityResolver.prototype.describeLock = function (script) {
+  var ch = script.codeHash.toLowerCase();
+  for (var i = 0; i < this.registry.length; i++) {
+    if (this.registry[i].codeHash.toLowerCase() === ch) return this.registry[i].name;
+  }
+  if (NON_DERIVABLE_LOCKS[ch]) return NON_DERIVABLE_LOCKS[ch].split(" — ")[0];
+  return "Unrecognised lock script";
+};
+
+WalletIdentityResolver.prototype.describeResolutionMethod = function () { return this.method; };
+
+WalletIdentityResolver.prototype.getResolutionCoverage = function () {
+  var map = {
+    "wallet-wide":     { label: "Wallet-wide", short: "Wallet-wide", badge: "ok",   text: "A documented resolver returned every account variant." },
+    "user-args":       { label: "Account identifier match", short: "Identifier", badge: "ok", text: "Queried by the account identifier across the known lock variants — not a guaranteed complete wallet." },
+    "user-args+manual": { label: "Identifier + pasted", short: "Identifier +", badge: "ok", text: "Account identifier variants plus the addresses you pasted." },
+    "manual":          { label: "Manual address set", short: "Manual", badge: "warn", text: "Only the entered address and the ones you pasted." },
+    "single-lock":     { label: "Single lock only", short: "Single lock", badge: "warn", text: "Only the exact lock script of the entered address could be queried." }
+  };
+  return map[this.coverage] || map["single-lock"];
+};
+/* =====================================================================
+   6. JSON-RPC CLIENT
+   ===================================================================== */
+
+var rpcIdCounter = 0;
+
+function RpcError(message, kind, detail) {
+  var e = new Error(message);
+  e.name = "RpcError";
+  e.kind = kind || "rpc";
+  e.detail = detail || null;
+  return e;
+}
+
+function RpcClient(url, timeoutMs) {
+  this.url = url;
+  this.timeoutMs = timeoutMs || 20000;
+  this.unsupported = Object.create(null);
+}
+
+RpcClient.prototype.call = async function (method, params, outerSignal) {
+  if (this.unsupported[method]) {
+    throw RpcError("This endpoint does not implement " + method + ".", "unsupported-method", { method: method });
+  }
+  var id = ++rpcIdCounter;
+  var ctl = new AbortController();
+  var timer = setTimeout(function () { ctl.abort("timeout"); }, this.timeoutMs);
+  var onOuter = function () { ctl.abort("cancelled"); };
+  if (outerSignal) {
+    if (outerSignal.aborted) { clearTimeout(timer); throw new DOMException("Scan cancelled", "AbortError"); }
+    outerSignal.addEventListener("abort", onOuter, { once: true });
+  }
+  var res;
+  try {
+    res = await fetch(this.url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: id, jsonrpc: "2.0", method: method, params: params || [] }),
+      signal: ctl.signal,
+      cache: "no-store",
+      credentials: "omit",
+      mode: "cors"
+    });
+  } catch (err) {
+    if (outerSignal && outerSignal.aborted) throw new DOMException("Scan cancelled", "AbortError");
+    if (ctl.signal.reason === "timeout" || (err && err.name === "AbortError")) {
+      throw RpcError("The node did not answer " + method + " within " + this.timeoutMs + " ms.", "timeout", { method: method });
+    }
+    throw RpcError("Could not reach " + this.url + ". The node may be offline, the URL wrong, or the browser may be blocking the request.",
+      "network", { method: method, cause: String(err && err.message || err) });
+  } finally {
+    clearTimeout(timer);
+    if (outerSignal) outerSignal.removeEventListener("abort", onOuter);
+  }
+
+  if (res.status === 429) throw RpcError("The endpoint is rate limiting this scan (HTTP 429). Slow the scan down in Advanced, or use your own node.", "rate-limit", { method: method });
+  if (!res.ok) throw RpcError("The endpoint answered " + method + " with HTTP " + res.status + " " + res.statusText + ".", "http", { method: method, status: res.status });
+
+  var body;
+  try { body = await res.json(); }
+  catch (e) { throw RpcError("The endpoint's reply to " + method + " was not valid JSON.", "malformed", { method: method }); }
+
+  if (!body || typeof body !== "object" || body.jsonrpc !== "2.0") {
+    throw RpcError("The reply to " + method + " is not a JSON-RPC 2.0 response.", "malformed", { method: method, body: body });
+  }
+  if (body.error) {
+    var code = body.error.code;
+    if (code === -32601) {
+      this.unsupported[method] = true;
+      throw RpcError("This endpoint does not implement " + method + ".", "unsupported-method", { method: method, error: body.error });
+    }
+    throw RpcError("The node rejected " + method + ": " + (body.error.message || "unknown error") + ".", "rpc", { method: method, error: body.error });
+  }
+  if (!("result" in body)) throw RpcError("The reply to " + method + " has no result field.", "malformed", { method: method });
+  return body.result;
+};
+
+RpcClient.prototype.tryCall = async function (method, params, signal) {
+  try { return { ok: true, value: await this.call(method, params, signal) }; }
+  catch (e) {
+    if (e && e.name === "AbortError") throw e;
+    return { ok: false, error: e };
+  }
+};
+
+/* ---------- capability detection ---------- */
+
+async function detectCapabilities(chain, indexer, signal) {
+  var caps = {
+    chainOk: false, indexerOk: false, sameEndpoint: chain.url === indexer.url,
+    nodeVersion: null, chainName: null, genesisHash: null,
+    tipNumber: null, tipEpoch: null, tipTimestamp: null, indexerTip: null,
+    indexerTipMethod: null, supportsScriptLenRange: true, errors: []
+  };
+
+  var tip = await chain.tryCall("get_tip_header", [], signal);
+  if (tip.ok) {
+    caps.chainOk = true;
+    caps.tipNumber = numHexToBig(tip.value.number);
+    caps.tipEpoch = parseEpoch(tip.value.epoch);
+    caps.tipTimestamp = numHexToBig(tip.value.timestamp);
+    caps.tipHeader = tip.value;
+  } else {
+    caps.errors.push({ where: "chain", error: tip.error });
+  }
+
+  var info = await chain.tryCall("local_node_info", [], signal);
+  if (info.ok && info.value) caps.nodeVersion = info.value.version || null;
+
+  var bc = await chain.tryCall("get_blockchain_info", [], signal);
+  if (bc.ok && bc.value) caps.chainName = bc.value.chain || null;
+
+  var gen = await chain.tryCall("get_block_hash", ["0x0"], signal);
+  if (gen.ok) caps.genesisHash = gen.value;
+
+  var it = await indexer.tryCall("get_indexer_tip", [], signal);
+  if (it.ok) { caps.indexerOk = true; caps.indexerTip = it.value; caps.indexerTipMethod = "get_indexer_tip"; }
+  else {
+    var it2 = await indexer.tryCall("get_tip", [], signal);
+    if (it2.ok) { caps.indexerOk = true; caps.indexerTip = it2.value; caps.indexerTipMethod = "get_tip"; }
+    else caps.errors.push({ where: "indexer", error: it2.error || it.error });
+  }
+
+  return caps;
+}
+
+/* =====================================================================
+   7. CELL INDEXER
+   ===================================================================== */
+
+function buildSearchKey(script, mode, daoScript, useLenRange) {
+  var filter = { script: { code_hash: daoScript.codeHash, hash_type: daoScript.hashType, args: daoScript.args } };
+  if (useLenRange) {
+    /* script len = 32 byte code hash + 1 byte hash type + args; DAO args are empty, so exactly 33 */
+    var argLen = (daoScript.args.length - 2) / 2;
+    var len = 33 + argLen;
+    filter.script_len_range = [bigToNumHex(BigInt(len)), bigToNumHex(BigInt(len + 1))];
+  }
+  return {
+    script: { code_hash: script.codeHash, hash_type: script.hashType, args: script.args },
+    script_type: "lock",
+    script_search_mode: mode,
+    filter: filter,
+    with_data: true
+  };
+}
+
+async function fetchDaoCellsForScript(indexer, entry, daoScript, cfg, ctx) {
+  var cells = [], cursor = null, pages = 0, useLenRange = ctx.useLenRange;
+  var limitHex = bigToNumHex(BigInt(cfg.pageSize));
+
+  for (;;) {
+    if (ctx.signal.aborted) throw new DOMException("Scan cancelled", "AbortError");
+    if (pages >= cfg.maxPages) {
+      ctx.warn("Stopped after " + cfg.maxPages + " pages for " + entry.label +
+        ". Raise the page limit in Advanced if this lock really holds that many DAO cells — the totals below are incomplete until you do.");
+      ctx.incomplete = true;
+      break;
+    }
+    var key = buildSearchKey(entry.script, entry.mode, daoScript, useLenRange);
+    var res;
+    try {
+      res = await indexer.call("get_cells", [key, "asc", limitHex, cursor], ctx.signal);
+    } catch (e) {
+      if (e && e.name === "AbortError") throw e;
+      if (useLenRange && (e.kind === "rpc" || e.kind === "malformed")) {
+        /* older indexers reject script_len_range; drop it and verify the type script locally instead */
+        useLenRange = false; ctx.useLenRange = false;
+        ctx.warn("This indexer rejected the script_len_range filter, so DAO type script args are verified in the browser instead.");
+        continue;
+      }
+      if (pages > 0) {
+        ctx.warn("Paging stopped early for " + entry.label + ": " + e.message);
+        ctx.incomplete = true;
+        break;
+      }
+      throw e;
+    }
+    pages++;
+    ctx.onPage();
+    var objects = (res && res.objects) || [];
+    for (var i = 0; i < objects.length; i++) cells.push(objects[i]);
+    ctx.onCandidates(objects.length);
+    var last = res && res.last_cursor;
+    if (!last || last === "0x" || objects.length === 0) break;
+    cursor = last;
+  }
+  return cells;
+}
+
+/* =====================================================================
+   8. CHAIN CACHE
+   ===================================================================== */
+
+function ChainCache(chain, ctx) {
+  this.chain = chain;
+  this.ctx = ctx;
+  this.headerByNumber = new Map();
+  this.headerByHash = new Map();
+  this.txs = new Map();
+}
+
+ChainCache.prototype.headerByNum = async function (numBig) {
+  var k = numBig.toString();
+  if (this.headerByNumber.has(k)) return this.headerByNumber.get(k);
+  var p = this.chain.call("get_header_by_number", [bigToNumHex(numBig)], this.ctx.signal)
+    .then(function (h) { return h; });
+  this.headerByNumber.set(k, p);
+  var h = await p;
+  if (h && h.hash) this.headerByHash.set(h.hash, Promise.resolve(h));
+  this.ctx.onHeader();
+  return h;
+};
+
+ChainCache.prototype.headerByHashFn = async function (hash) {
+  if (this.headerByHash.has(hash)) return this.headerByHash.get(hash);
+  var p = this.chain.call("get_header", [hash], this.ctx.signal);
+  this.headerByHash.set(hash, p);
+  var h = await p;
+  this.ctx.onHeader();
+  return h;
+};
+
+ChainCache.prototype.tx = async function (hash) {
+  if (this.txs.has(hash)) return this.txs.get(hash);
+  var p = this.chain.call("get_transaction", [hash], this.ctx.signal);
+  this.txs.set(hash, p);
+  var t = await p;
+  this.ctx.onTx();
+  return t;
+};
+
+/* =====================================================================
+   9. DAO PARSING AND CALCULATION  (RFC 0023 / ckb-system-scripts dao.c)
+   ===================================================================== */
+
+function parseEpoch(epochHex) {
+  var v = numHexToBig(epochHex);
+  var number = v & 0xffffffn;
+  var index = (v >> 24n) & 0xffffn;
+  var length = (v >> 40n) & 0xffffn;
+  if (length === 0n) { index = 0n; length = 1n; }
+  return { number: number, index: index, length: length, raw: epochHex };
+}
+
+function encodeEpoch(e) {
+  return (e.length << 40n) | (e.index << 24n) | e.number;
+}
+
+function epochToFloat(e) {
+  return Number(e.number) + (e.length > 0n ? Number(e.index) / Number(e.length) : 0);
+}
+
+/* returns negative, zero or positive, comparing a - b without floating point */
+function compareEpoch(a, b) {
+  if (a.number !== b.number) return a.number < b.number ? -1 : 1;
+  var left = a.index * b.length, right = b.index * a.length;
+  if (left === right) return 0;
+  return left < right ? -1 : 1;
+}
+
+function decodeDaoField(daoHex) {
+  var b = hexToBytes(daoHex);
+  if (b.length !== 32) throw new Error("Header dao field must be 32 bytes, got " + b.length + ".");
+  return { c: leU64(b, 0), ar: leU64(b, 8), s: leU64(b, 16), u: leU64(b, 24) };
+}
+
+function scriptByteLength(script) {
+  if (!script) return 0;
+  return 32 + 1 + (script.args.length - 2) / 2;
+}
+
+/* occupied capacity, in shannons, of a cell output as defined by CKB's storage rules */
+function occupiedCapacity(output, dataHex) {
+  var bytes = 8; /* the capacity field itself */
+  bytes += scriptByteLength(output.lock);
+  if (output.type) bytes += scriptByteLength(output.type);
+  bytes += (dataHex.length - 2) / 2;
+  return BigInt(bytes) * SHANNONS_PER_CKB;
+}
+
+/* maximum_withdraw = occupied + (capacity - occupied) * AR_withdraw / AR_deposit  */
+function maximumWithdraw(capacity, occupied, arDeposit, arWithdraw) {
+  if (arDeposit === 0n) throw new Error("Deposit accumulated rate is zero, which cannot be right.");
+  if (capacity < occupied) throw new Error("Cell capacity is below its own occupied capacity.");
+  var counted = capacity - occupied;
+  return occupied + (counted * arWithdraw) / arDeposit;
+}
+
+/* Full deposited epochs between two headers, exactly as dao.c computes it. */
+function depositedEpochs(depositEpoch, withdrawEpoch) {
+  var withdrawFraction = withdrawEpoch.index * depositEpoch.length;
+  var depositFraction = depositEpoch.index * withdrawEpoch.length;
+  if (withdrawEpoch.number < depositEpoch.number ||
+      (withdrawEpoch.number === depositEpoch.number && withdrawFraction <= depositFraction)) {
+    return null; /* withdraw header is not after the deposit header */
+  }
+  var epochs = withdrawEpoch.number - depositEpoch.number;
+  if (withdrawFraction > depositFraction) epochs += 1n;
+  return epochs;
+}
+
+function lockEpochsFor(deposited) {
+  if (deposited === null) return null;
+  var lock = ((deposited + (LOCK_PERIOD_EPOCHS - 1n)) / LOCK_PERIOD_EPOCHS) * LOCK_PERIOD_EPOCHS;
+  if (lock < LOCK_PERIOD_EPOCHS) return null;
+  return lock;
+}
+
+/* the minimum absolute-epoch since value the phase two input must carry */
+function minimalSince(depositEpoch, lockEpochs) {
+  var e = { number: depositEpoch.number + lockEpochs, index: depositEpoch.index, length: depositEpoch.length };
+  var since = (0x20n << 56n) | encodeEpoch(e);
+  return { epoch: e, sinceHex: "0x" + since.toString(16).padStart(16, "0"), since: since };
+}
+
+/* which 180-epoch cycle a still-deposited cell is in right now, and where it ends */
+function cyclePosition(depositEpoch, nowEpoch) {
+  var elapsed = depositedEpochs(depositEpoch, nowEpoch);
+  if (elapsed === null) return null;
+  var cycleIndex = elapsed / LOCK_PERIOD_EPOCHS;                 /* completed full cycles */
+  var lock = (cycleIndex + 1n) * LOCK_PERIOD_EPOCHS;
+  var into = elapsed - cycleIndex * LOCK_PERIOD_EPOCHS;
+  return {
+    elapsedEpochs: elapsed,
+    cycleNumber: cycleIndex + 1n,
+    epochsIntoCycle: into,
+    epochsRemaining: LOCK_PERIOD_EPOCHS - into,
+    cycleEndEpoch: { number: depositEpoch.number + lock, index: depositEpoch.index, length: depositEpoch.length },
+    lockEpochsIfWithdrawnNow: lockEpochsFor(elapsed)
+  };
+}
+
+function epochsToSeconds(epochs) { return Number(epochs) * TARGET_EPOCH_SECONDS; }
+
+function isDepositData(dataHex) {
+  return typeof dataHex === "string" && dataHex.length === 18 && /^0x0{16}$/.test(dataHex);
+}
+
+function isWithdrawingData(dataHex) {
+  if (typeof dataHex !== "string" || dataHex.length !== 18 || !isHex(dataHex)) return false;
+  return leU64Hex(dataHex) > 0n;
+}
+
+function isDaoTypeScript(type, daoScript) {
+  if (!type) return false;
+  return type.code_hash.toLowerCase() === daoScript.codeHash.toLowerCase()
+      && type.hash_type === daoScript.hashType
+      && (type.args || "0x").toLowerCase() === daoScript.args.toLowerCase();
+}
+/* =====================================================================
+   10. STATE STORE
+   ===================================================================== */
+
+var state = {
+  scanToken: 0,
+  running: false,
+  controller: null,
+  source: null,            /* "live" | "demo" */
+  records: [],
+  summary: null,
+  resolver: null,
+  caps: null,
+  scanMeta: null,
+  warnings: [],
+  filter: "all",
+  sort: "principal",
+  search: "",
+  cfg: null,
+  ccc: { enabled: false, url: "", status: "off", module: null, mismatches: [] }
+};
+
+function normalizeScript(s) {
+  if (!s) return null;
+  return { codeHash: s.code_hash, hashType: s.hash_type, args: s.args || "0x" };
+}
+
+function denormalizeScript(s) {
+  return { code_hash: s.codeHash, hash_type: s.hashType, args: s.args };
+}
+
+/* =====================================================================
+   11. PER-CELL RESOLUTION
+   ===================================================================== */
+
+async function resolveDepositCell(cell, base, cache, ctx) {
+  var rec = base;
+  rec.state = "deposited";
+  var header;
+  try {
+    header = await cache.headerByNum(rec.blockNumber);
+  } catch (e) {
+    if (e && e.name === "AbortError") throw e;
+    rec.state = "unknown-or-invalid";
+    rec.partial = true;
+    rec.missing.push("Deposit block header #" + rec.blockNumber.toString() + " could not be read: " + e.message);
+    return rec;
+  }
+  rec.depositHeader = summariseHeader(header);
+  if (rec.depositHeader.number !== rec.blockNumber) {
+    rec.partial = true;
+    rec.missing.push("The node returned header #" + rec.depositHeader.number + " for block #" + rec.blockNumber + ".");
+  }
+
+  var tipDao = ctx.tipDao, tipEpoch = ctx.tipEpoch;
+  var arDeposit = rec.depositHeader.ar;
+  var arNow = tipDao.ar;
+
+  try {
+    rec.maxWithdraw = maximumWithdraw(rec.capacity, rec.occupied, arDeposit, arNow);
+    rec.compensation = rec.maxWithdraw - rec.capacity;
+    rec.estimated = true;
+  } catch (e) {
+    rec.partial = true;
+    rec.missing.push("Compensation could not be computed: " + e.message);
+  }
+
+  rec.cycle = cyclePosition(rec.depositHeader.epoch, tipEpoch);
+  if (rec.cycle) {
+    rec.phaseOneAvailable = rec.cycle.elapsedEpochs >= HEADER_DEP_MATURITY_EPOCHS;
+    rec.nextWindowEpoch = rec.cycle.cycleEndEpoch;
+    rec.nextWindowSeconds = epochsToSeconds(rec.cycle.epochsRemaining);
+    rec.nextWindowAt = Number(ctx.tipTimestamp) + rec.nextWindowSeconds * 1000;
+    if (rec.cycle.lockEpochsIfWithdrawnNow !== null) {
+      rec.ifWithdrawnNow = minimalSince(rec.depositHeader.epoch, rec.cycle.lockEpochsIfWithdrawnNow);
+    }
+  } else {
+    rec.partial = true;
+    rec.missing.push("The chain tip is not after this cell's deposit epoch, so age could not be computed.");
+  }
+
+  rec.ageMs = Number(ctx.tipTimestamp - rec.depositHeader.timestamp);
+  rec.apc = annualised(rec.compensation, rec.capacity - rec.occupied, rec.ageMs);
+  rec.formula = {
+    rule: "maximum_withdraw = occupied + (capacity - occupied) * AR_now / AR_deposit",
+    capacity: rec.capacity.toString(),
+    occupied: rec.occupied.toString(),
+    counted: (rec.capacity - rec.occupied).toString(),
+    ar_deposit: arDeposit.toString(),
+    ar_reference: arNow.toString(),
+    ar_reference_source: "chain tip header #" + ctx.tipNumber.toString() + " (estimate: the real value is fixed by the block your phase one lands in)",
+    result: rec.maxWithdraw === null ? null : rec.maxWithdraw.toString()
+  };
+  return rec;
+}
+
+async function resolveWithdrawingCell(cell, base, cache, ctx, daoScript) {
+  var rec = base;
+  var depositBlockNumber;
+  try { depositBlockNumber = leU64Hex(rec.data); }
+  catch (e) {
+    rec.state = "unknown-or-invalid";
+    rec.partial = true;
+    rec.missing.push("Cell data is not an 8-byte little-endian block number.");
+    return rec;
+  }
+  rec.depositBlockNumber = depositBlockNumber;
+
+  var withdrawHeader = null, depositHeader = null;
+  try { withdrawHeader = await cache.headerByNum(rec.blockNumber); }
+  catch (e) {
+    if (e && e.name === "AbortError") throw e;
+    rec.missing.push("Withdrawal block header #" + rec.blockNumber.toString() + " is unavailable: " + e.message);
+  }
+  try { depositHeader = await cache.headerByNum(depositBlockNumber); }
+  catch (e) {
+    if (e && e.name === "AbortError") throw e;
+    rec.missing.push("Deposit block header #" + depositBlockNumber.toString() + " is unavailable: " + e.message);
+  }
+
+  if (withdrawHeader) rec.withdrawHeader = summariseHeader(withdrawHeader);
+  if (depositHeader) rec.depositHeader = summariseHeader(depositHeader);
+
+  /* structural verification against transaction history */
+  rec.verification = { checked: false, depositInputFound: false, notes: [] };
+  try {
+    var txRes = await cache.tx(rec.outPoint.txHash);
+    var tx = txRes && txRes.transaction;
+    if (!tx) {
+      rec.missing.push("The transaction that created this cell is no longer served by this node.");
+    } else {
+      rec.verification.checked = true;
+      var idx = Number(rec.outPoint.index);
+      var input = tx.inputs && tx.inputs[idx];
+      if (!input) {
+        rec.verification.notes.push("No input sits at the same index as this output, which the DAO script requires for phase one.");
+      } else {
+        var prevHash = input.previous_output.tx_hash;
+        var prevIdx = parseInt(input.previous_output.index, 16);
+        var prevRes = await cache.tx(prevHash);
+        var prevTx = prevRes && prevRes.transaction;
+        if (!prevTx) {
+          rec.missing.push("The deposit transaction " + midTrunc(prevHash, 10, 8) + " is not served by this node.");
+        } else {
+          var prevOut = prevTx.outputs[prevIdx];
+          var prevData = prevTx.outputs_data[prevIdx];
+          var okType = isDaoTypeScript(prevOut && prevOut.type, daoScript);
+          var okData = isDepositData(prevData);
+          var okCap = prevOut && numHexToBig(prevOut.capacity) === rec.capacity;
+          rec.verification.depositInputFound = !!(okType && okData && okCap);
+          rec.verification.depositOutPoint = prevHash + ":" + prevIdx;
+          if (!okType) rec.verification.notes.push("The consumed cell does not carry the Nervos DAO type script.");
+          if (!okData) rec.verification.notes.push("The consumed cell's data is not eight zero bytes, so it was not a deposit cell.");
+          if (!okCap) rec.verification.notes.push("Capacity does not match the consumed cell, which phase one requires.");
+          if (prevRes.tx_status && prevRes.tx_status.block_hash) {
+            try {
+              var dh = await cache.headerByHashFn(prevRes.tx_status.block_hash);
+              var dhNum = numHexToBig(dh.number);
+              if (dhNum !== depositBlockNumber) {
+                rec.verification.notes.push("The stored deposit block number " + depositBlockNumber + " does not match the block the deposit was mined in (" + dhNum + ").");
+              } else if (!depositHeader) {
+                rec.depositHeader = summariseHeader(dh);
+                depositHeader = dh;
+              }
+            } catch (e2) {
+              if (e2 && e2.name === "AbortError") throw e2;
+              rec.missing.push("The deposit transaction's block header could not be read: " + e2.message);
+            }
+          }
+        }
+      }
+    }
+  } catch (e) {
+    if (e && e.name === "AbortError") throw e;
+    rec.missing.push("Transaction history check failed: " + e.message);
+  }
+
+  if (!rec.depositHeader || !rec.withdrawHeader) {
+    rec.state = "unknown-or-invalid";
+    rec.partial = true;
+    return rec;
+  }
+  if (rec.verification.checked && !rec.verification.depositInputFound && rec.verification.notes.length) {
+    rec.state = "unknown-or-invalid";
+    rec.partial = true;
+    return rec;
+  }
+
+  var deposited = depositedEpochs(rec.depositHeader.epoch, rec.withdrawHeader.epoch);
+  var lock = lockEpochsFor(deposited);
+  if (deposited === null || lock === null) {
+    rec.state = "unknown-or-invalid";
+    rec.partial = true;
+    rec.missing.push("The withdrawal header is not after the deposit header, so the DAO script would reject this cell.");
+    return rec;
+  }
+  rec.depositedEpochs = deposited;
+  rec.lockEpochs = lock;
+  var ms = minimalSince(rec.depositHeader.epoch, lock);
+  rec.since = ms;
+  rec.maturityEpoch = ms.epoch;
+
+  var cmp = compareEpoch(ctx.tipEpoch, ms.epoch);
+  rec.state = cmp >= 0 ? "withdrawing-mature" : "withdrawing-immature";
+  rec.mature = cmp >= 0;
+  rec.epochsRemaining = cmp >= 0 ? 0n
+    : (ms.epoch.number - ctx.tipEpoch.number) + (compareEpochFractionAdjust(ctx.tipEpoch, ms.epoch));
+  rec.remainingSeconds = cmp >= 0 ? 0 : epochsToSeconds(rec.epochsRemaining);
+  rec.matureAt = cmp >= 0 ? null : Number(ctx.tipTimestamp) + rec.remainingSeconds * 1000;
+
+  try {
+    rec.maxWithdraw = maximumWithdraw(rec.capacity, rec.occupied, rec.depositHeader.ar, rec.withdrawHeader.ar);
+    rec.compensation = rec.maxWithdraw - rec.capacity;
+    rec.estimated = false;   /* both rates are already fixed on chain */
+  } catch (e) {
+    rec.partial = true;
+    rec.missing.push("Locked-in withdraw amount could not be computed: " + e.message);
+  }
+
+  rec.ageMs = Number(rec.withdrawHeader.timestamp - rec.depositHeader.timestamp);
+  rec.apc = annualised(rec.compensation, rec.capacity - rec.occupied, rec.ageMs);
+  rec.formula = {
+    rule: "maximum_withdraw = occupied + (capacity - occupied) * AR_withdraw / AR_deposit",
+    capacity: rec.capacity.toString(),
+    occupied: rec.occupied.toString(),
+    counted: (rec.capacity - rec.occupied).toString(),
+    ar_deposit: rec.depositHeader.ar.toString(),
+    ar_reference: rec.withdrawHeader.ar.toString(),
+    ar_reference_source: "withdrawal block header #" + rec.withdrawHeader.number.toString() + " (fixed on chain)",
+    deposited_epochs: deposited.toString(),
+    lock_epochs: lock.toString(),
+    minimal_since: ms.sinceHex,
+    result: rec.maxWithdraw === null ? null : rec.maxWithdraw.toString()
+  };
+  if (rec.missing.length) rec.partial = true;
+  return rec;
+}
+
+/* whole epochs still to wait, rounding the fractional part up */
+function compareEpochFractionAdjust(now, target) {
+  var left = target.index * now.length, right = now.index * target.length;
+  return left > right ? 1n : 0n;
+}
+
+function annualised(compensation, counted, ageMs) {
+  if (compensation === null || compensation === undefined || counted === null) return null;
+  if (counted <= 0n || !ageMs || ageMs <= 0) return null;
+  var ratio = Number(compensation) / Number(counted);
+  var years = ageMs / MS_PER_YEAR;
+  if (years <= 0) return null;
+  return ratio / years;
+}
+
+function summariseHeader(h) {
+  var dao = decodeDaoField(h.dao);
+  return {
+    number: numHexToBig(h.number),
+    hash: h.hash,
+    epoch: parseEpoch(h.epoch),
+    timestamp: numHexToBig(h.timestamp),
+    dao: h.dao,
+    ar: dao.ar,
+    daoParts: { c: dao.c.toString(), ar: dao.ar.toString(), s: dao.s.toString(), u: dao.u.toString() }
+  };
+}
+
+/* =====================================================================
+   12. SCAN CONTROLLER
+   ===================================================================== */
+
+async function runScan(opts) {
+  var token = ++state.scanToken;
+  var controller = new AbortController();
+  state.controller = controller;
+  state.running = true;
+  state.source = "live";
+  state.warnings = [];
+
+  var cfg;
+  try { cfg = readConfig(); }
+  catch (cfgErr) {
+    state.running = false; state.controller = null; setScanUi(false);
+    showError("Check the settings", cfgErr.message, null, "bad");
+    return;
+  }
+  state.cfg = cfg;
+
+  var progress = {
+    identities: 0, pages: 0, candidates: 0, txs: 0, headers: 0, processed: 0, total: 0
+  };
+  var ctx = {
+    signal: controller.signal,
+    useLenRange: true,
+    incomplete: false,
+    warn: function (m) { if (state.warnings.indexOf(m) === -1) state.warnings.push(m); renderProgressNote(); },
+    onPage: function () { progress.pages++; renderProgress(progress); },
+    onCandidates: function (n) { progress.candidates += n; renderProgress(progress); },
+    onTx: function () { progress.txs++; renderProgress(progress); },
+    onHeader: function () { progress.headers++; renderProgress(progress); }
+  };
+
+  function stale() { return token !== state.scanToken; }
+
+  showProgress(true, "Resolving account identity");
+  hideError();
+
+  try {
+    /* --- identity --- */
+    var resolver = new WalletIdentityResolver({
+      network: cfg.network, prefix: cfg.prefix, registry: cfg.lockTable
+    });
+    resolver.decodeEnteredAddress(cfg.address);
+    var extraResult = resolver.decodeExtraAddresses(opts && opts.extraAddresses || []);
+    if (extraResult.errors.length) {
+      extraResult.errors.forEach(function (er) {
+        ctx.warn("Pasted address on line " + er.line + " was skipped: " + er.message);
+      });
+    }
+    await cccCrossCheck(resolver.entered);
+    var entries = resolver.resolveWalletScripts();
+    progress.identities = entries.length;
+    state.resolver = resolver;
+    renderIdentity(resolver, cfg);
+    renderProgress(progress);
+
+    /* --- endpoints --- */
+    showProgress(true, "Checking the endpoints");
+    var chain = new RpcClient(cfg.rpcUrl, cfg.timeoutMs);
+    var indexer = cfg.indexerUrl === cfg.rpcUrl ? chain : new RpcClient(cfg.indexerUrl, cfg.timeoutMs);
+    var caps = await detectCapabilities(chain, indexer, controller.signal);
+    if (stale()) return;
+    state.caps = caps;
+    renderConnection(caps, cfg);
+
+    if (!caps.chainOk) {
+      throw decorate(caps.errors.length ? caps.errors[0].error : RpcError("The chain RPC did not answer.", "network"),
+        "The scan did not start, so nothing here means \u201cno deposits\u201d.");
+    }
+    if (!caps.indexerOk) {
+      var e = RpcError("This endpoint serves chain methods but not the indexer methods this scan needs (get_cells).", "indexer-missing");
+      throw decorate(e, "Enter a separate indexer endpoint in Connection, or point the RPC field at a node started with the indexer enabled. Until then, no cell search has run — this is not a result of zero deposits.");
+    }
+    if (cfg.network !== "custom" && caps.genesisHash && NETWORKS[cfg.network].genesis &&
+        caps.genesisHash.toLowerCase() !== NETWORKS[cfg.network].genesis.toLowerCase()) {
+      ctx.warn("The endpoint's genesis hash does not match the expected " + cfg.network + " genesis hash. You may be pointed at a different chain.");
+    }
+
+    var tipHeader = caps.tipHeader;
+    var tipDao = decodeDaoField(tipHeader.dao);
+    var scanCtx = {
+      tipDao: tipDao, tipEpoch: caps.tipEpoch, tipNumber: caps.tipNumber,
+      tipTimestamp: caps.tipTimestamp, signal: controller.signal
+    };
+
+    /* --- cell discovery --- */
+    showProgress(true, "Searching for DAO cells across " + entries.length + " lock script" + (entries.length === 1 ? "" : "s"));
+    var perEntry = await pool(entries, Math.min(cfg.concurrency, 4), async function (entry) {
+      var cells = await fetchDaoCellsForScript(indexer, entry, cfg.daoScript, cfg, ctx);
+      return { entry: entry, cells: cells };
+    }, controller.signal);
+    if (stale()) return;
+
+    /* --- dedupe and verify ownership --- */
+    var byOutPoint = new Map();
+    var rejected = { wrongType: 0, wrongOwner: 0 };
+    perEntry.forEach(function (bundle) {
+      bundle.cells.forEach(function (c) {
+        var lock = normalizeScript(c.output.lock);
+        var type = c.output.type;
+        if (!isDaoTypeScript(type, cfg.daoScript)) { rejected.wrongType++; return; }
+        if (bundle.entry.mode === "prefix" && resolver.userArgs) {
+          var ua = resolver.extractUserArgs(lock);
+          if (!ua || ua.hex.toLowerCase() !== resolver.userArgs.hex.toLowerCase()) { rejected.wrongOwner++; return; }
+        }
+        var key = c.out_point.tx_hash + ":" + c.out_point.index;
+        if (byOutPoint.has(key)) {
+          byOutPoint.get(key).matchedBy.push(bundle.entry.label);
+          return;
+        }
+        byOutPoint.set(key, { cell: c, entry: bundle.entry, matchedBy: [bundle.entry.label] });
+      });
+    });
+    if (rejected.wrongType) ctx.warn(rejected.wrongType + " returned cell(s) did not carry the exact Nervos DAO type script and were dropped.");
+    if (rejected.wrongOwner) ctx.warn(rejected.wrongOwner + " returned cell(s) came from a prefix search but belong to a different account identifier, and were dropped.");
+
+    var items = Array.from(byOutPoint.values());
+    progress.total = items.length;
+    renderProgress(progress);
+
+    /* --- resolve each cell --- */
+    showProgress(true, items.length ? "Reading headers and transactions for " + items.length + " cell" + (items.length === 1 ? "" : "s") : "No candidate cells found");
+    var cache = new ChainCache(chain, ctx);
+    var records = await pool(items, cfg.concurrency, async function (item) {
+      var rec = baseRecord(item);
+      var out;
+      if (isDepositData(rec.data)) {
+        out = await resolveDepositCell(item.cell, rec, cache, scanCtx);
+      } else if (isWithdrawingData(rec.data)) {
+        out = await resolveWithdrawingCell(item.cell, rec, cache, scanCtx, cfg.daoScript);
+      } else {
+        rec.state = "unknown-or-invalid";
+        rec.partial = true;
+        rec.missing.push("Cell data is " + ((rec.data.length - 2) / 2) + " byte(s); a Nervos DAO cell carries exactly 8.");
+        out = rec;
+      }
+      progress.processed++;
+      renderProgress(progress);
+      return out;
+    }, controller.signal);
+    if (stale()) return;
+
+    state.records = records;
+    state.scanMeta = {
+      at: new Date().toISOString(),
+      network: cfg.network,
+      rpcUrl: cfg.rpcUrl,
+      indexerUrl: cfg.indexerUrl,
+      tipNumber: caps.tipNumber.toString(),
+      tipEpoch: caps.tipEpoch.number.toString() + " " + caps.tipEpoch.index.toString() + "/" + caps.tipEpoch.length.toString(),
+      incomplete: ctx.incomplete,
+      lockScriptsQueried: entries.length,
+      cellsFound: records.length
+    };
+    state.summary = summarise(records);
+    showProgress(false);
+    renderAll();
+    if (!records.length) renderEmptyState(resolver, ctx.incomplete);
+
+  } catch (err) {
+    if (stale()) return;
+    if (err && err.name === "AbortError") {
+      showProgress(false);
+      showError("Scan cancelled", "Nothing was changed. Results already on screen, if any, are from the previous completed scan.", null, "info");
+    } else {
+      showProgress(false);
+      showErrorFromException(err);
+    }
+  } finally {
+    if (!stale()) {
+      state.running = false;
+      state.controller = null;
+      setScanUi(false);
+    }
+  }
+}
+
+function decorate(err, extra) {
+  err.extraGuidance = extra;
+  return err;
+}
+
+function baseRecord(item) {
+  var c = item.cell;
+  var lock = normalizeScript(c.output.lock);
+  var type = normalizeScript(c.output.type);
+  var data = c.output_data || "0x";
+  var capacity = numHexToBig(c.output.capacity);
+  var occupied = occupiedCapacity({ lock: lock, type: type }, data);
+  return {
+    id: c.out_point.tx_hash + ":" + parseInt(c.out_point.index, 16),
+    demo: false,
+    outPoint: { txHash: c.out_point.tx_hash, index: parseInt(c.out_point.index, 16) },
+    blockNumber: numHexToBig(c.block_number),
+    txIndex: c.tx_index === undefined ? null : parseInt(c.tx_index, 16),
+    capacity: capacity,
+    occupied: occupied,
+    lock: lock,
+    type: type,
+    data: data,
+    lockLabel: item.entry.label,
+    resolutionSource: item.entry.origin,
+    sourceAddress: item.entry.address,
+    matchedBy: item.matchedBy,
+    state: "unknown-or-invalid",
+    partial: false,
+    missing: [],
+    depositHeader: null,
+    withdrawHeader: null,
+    maxWithdraw: null,
+    compensation: null,
+    estimated: null,
+    apc: null,
+    formula: null
+  };
+}
+
+function summarise(records) {
+  var s = {
+    total: records.length,
+    deposits: 0, withdrawing: 0, mature: 0, immature: 0, unresolved: 0,
+    principal: 0n, withdrawable: 0n, compensation: 0n,
+    unresolvedCapacity: 0n,
+    partial: 0,
+    nextMaturity: null
+  };
+  records.forEach(function (r) {
+    if (r.state === "unknown-or-invalid") {
+      s.unresolved++;
+      s.unresolvedCapacity += r.capacity;
+      return;
+    }
+    if (r.partial) s.partial++;
+    s.principal += r.capacity;
+    if (r.maxWithdraw !== null) s.withdrawable += r.maxWithdraw;
+    if (r.compensation !== null) s.compensation += r.compensation;
+    if (r.state === "deposited") {
+      s.deposits++;
+      if (r.nextWindowAt && (!s.nextMaturity || r.nextWindowAt < s.nextMaturity.at)) {
+        s.nextMaturity = { at: r.nextWindowAt, id: r.id, kind: "cycle end" };
+      }
+    } else {
+      s.withdrawing++;
+      if (r.state === "withdrawing-mature") s.mature++;
+      else {
+        s.immature++;
+        if (r.matureAt && (!s.nextMaturity || r.matureAt < s.nextMaturity.at)) {
+          s.nextMaturity = { at: r.matureAt, id: r.id, kind: "phase two" };
+        }
+      }
+    }
+  });
+  return s;
+}
+/* =====================================================================
+   13. CONFIG AND PERSISTENCE
+   ===================================================================== */
+
+var STORAGE_KEY = "cellledger.settings.v1";
+
+function serialiseLockTable(list) {
+  return list.map(function (l) {
+    return [l.id, l.codeHash, l.hashType, l.template, l.mode].join(" | ");
+  }).join("\n");
+}
+
+function parseLockTable(text, network) {
+  var out = [], errors = [];
+  String(text || "").split("\n").forEach(function (line, i) {
+    var t = line.trim();
+    if (!t || t.charAt(0) === "#") return;
+    var parts = t.split("|").map(function (p) { return p.trim(); });
+    if (parts.length < 5) { errors.push("Line " + (i + 1) + " needs five fields separated by |."); return; }
+    var codeHash = parts[1].toLowerCase();
+    if (!/^0x[0-9a-f]{64}$/.test(codeHash)) { errors.push("Line " + (i + 1) + " does not have a 32-byte code hash."); return; }
+    if (["type", "data", "data1", "data2"].indexOf(parts[2]) === -1) { errors.push("Line " + (i + 1) + " has an unknown hash_type."); return; }
+    if (parts[3].indexOf("{blake160}") === -1) { errors.push("Line " + (i + 1) + " has no {blake160} placeholder in its args template."); return; }
+    if (["exact", "prefix"].indexOf(parts[4]) === -1) { errors.push("Line " + (i + 1) + " must end in exact or prefix."); return; }
+    var known = (LOCK_REGISTRY[network] || []).filter(function (k) { return k.codeHash.toLowerCase() === codeHash; })[0];
+    out.push({
+      id: parts[0], name: known ? known.name : parts[0],
+      codeHash: codeHash, hashType: parts[2], template: parts[3], mode: parts[4],
+      source: known ? known.source : "edited by you"
+    });
+  });
+  return { list: out, errors: errors };
+}
+
+function readConfig(requireAddress) {
+  var network = $("network").value;
+  var prefix = $("prefix").value.trim();
+  var rpcUrl = $("rpcUrl").value.trim();
+  var indexerUrl = $("indexerUrl").value.trim() || rpcUrl;
+
+  if (!rpcUrl) throw new Error("Enter an RPC endpoint. The default is " + NETWORKS.mainnet.rpc + ".");
+  validateEndpoint(rpcUrl, "RPC");
+  validateEndpoint(indexerUrl, "Indexer");
+  if (!prefix) throw new Error("Enter the address prefix for this network, for example ckb or ckt.");
+
+  var daoScript = {
+    codeHash: $("daoCodeHash").value.trim().toLowerCase(),
+    hashType: $("daoHashType").value,
+    args: ($("daoArgs").value.trim() || "0x").toLowerCase()
+  };
+  if (!/^0x[0-9a-f]{64}$/.test(daoScript.codeHash)) throw new Error("The DAO code hash must be 32 bytes of hex. Reset to defaults if you did not mean to change it.");
+  if (!isHex(daoScript.args)) throw new Error("The DAO args field must be 0x-prefixed hex.");
+
+  var lt = parseLockTable($("lockTable").value, network);
+  if (lt.errors.length) throw new Error("The lock table has a problem. " + lt.errors[0]);
+
+  var cfg = {
+    network: network, prefix: prefix, rpcUrl: rpcUrl, indexerUrl: indexerUrl,
+    timeoutMs: clampInt($("timeoutMs").value, 1000, 180000, 20000),
+    pageSize: clampInt($("pageSize").value, 10, 1000, 100),
+    maxPages: clampInt($("maxPages").value, 1, 500, 40),
+    concurrency: clampInt($("concurrency").value, 1, 8, 6),
+    daoScript: daoScript,
+    lockTable: lt.list,
+    explorer: NETWORKS[network] ? NETWORKS[network].explorer : "",
+    address: $("addr").value.trim()
+  };
+  if (requireAddress !== false && !cfg.address) throw new Error("Enter a CKB address to scan.");
+  return cfg;
+}
+
+function clampInt(v, lo, hi, dflt) {
+  var n = parseInt(v, 10);
+  if (!isFinite(n)) return dflt;
+  return Math.max(lo, Math.min(hi, n));
+}
+
+function validateEndpoint(url, label) {
+  var u;
+  try { u = new URL(url); } catch (e) { throw new Error(label + " endpoint is not a valid URL. Include the scheme, for example http://127.0.0.1:8114."); }
+  if (u.protocol !== "http:" && u.protocol !== "https:") throw new Error(label + " endpoint must use http or https.");
+  if (location.protocol === "https:" && u.protocol === "http:") {
+    throw new Error(label + " endpoint uses http, but this page is served over https, so the browser will block the request. " +
+      "Open this file locally (file://) to reach a plain-http node, or put the node behind https.");
+  }
+}
+
+function saveSettings() {
+  try {
+    var data = {
+      network: $("network").value, prefix: $("prefix").value, rpcUrl: $("rpcUrl").value,
+      indexerUrl: $("indexerUrl").value, timeoutMs: $("timeoutMs").value, pageSize: $("pageSize").value,
+      maxPages: $("maxPages").value, concurrency: $("concurrency").value,
+      daoCodeHash: $("daoCodeHash").value, daoHashType: $("daoHashType").value, daoArgs: $("daoArgs").value,
+      lockTable: $("lockTable").value, cccUrl: $("cccUrl").value, cccEnable: $("cccEnable").checked,
+      theme: document.documentElement.getAttribute("data-theme")
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  } catch (e) { /* private mode or storage disabled — settings simply will not persist */ }
+}
+
+function loadSettings() {
+  var data = null;
+  try { data = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null"); } catch (e) { data = null; }
+  applyNetworkDefaults($("network").value, true);
+  if (!data) return;
+  ["network", "prefix", "rpcUrl", "indexerUrl", "timeoutMs", "pageSize", "maxPages", "concurrency",
+   "daoCodeHash", "daoHashType", "daoArgs", "lockTable", "cccUrl"].forEach(function (k) {
+    if (data[k] !== undefined && data[k] !== null && $(k)) $(k).value = data[k];
+  });
+  if (data.cccEnable) $("cccEnable").checked = true;
+  if (data.theme) document.documentElement.setAttribute("data-theme", data.theme);
+}
+
+function applyNetworkDefaults(network, force) {
+  var n = NETWORKS[network] || NETWORKS.mainnet;
+  if (network !== "custom") {
+    $("prefix").value = n.prefix;
+    if (force || !$("rpcUrl").value || Object.keys(NETWORKS).some(function (k) { return NETWORKS[k].rpc === $("rpcUrl").value; })) {
+      $("rpcUrl").value = n.rpc;
+    }
+    var dao = DAO_SCRIPT[network] || DAO_SCRIPT.mainnet;
+    $("daoCodeHash").value = dao.codeHash;
+    $("daoHashType").value = dao.hashType;
+    $("daoArgs").value = dao.args;
+  }
+  $("lockTable").value = serialiseLockTable(LOCK_REGISTRY[network] || []);
+}
+
+/* =====================================================================
+   14. RENDERING
+   ===================================================================== */
+
+function badge(cls, text) {
+  return '<span class="badge ' + cls + '"><span class="dot"></span>' + esc(text) + "</span>";
+}
+
+function copyLine(label, value, truncate) {
+  var shown = truncate ? midTrunc(value, truncate[0], truncate[1]) : value;
+  return '<div class="copyline"><span class="hash" title="' + esc(value) + '">' + esc(shown) +
+    '</span><button class="copybtn" type="button" data-copy="' + esc(value) + '" aria-label="Copy ' + esc(label) + '">Copy</button></div>';
+}
+
+function setScanUi(running) {
+  $("scanBtn").disabled = running;
+  $("stickyScan").disabled = running;
+  $("rescanBtn").disabled = running;
+  $("demoBtn").disabled = running;
+  $("testBtn").disabled = running;
+  $("cancelBtn").hidden = !running;
+  $("scanBtn").textContent = running ? "Scanning…" : "Scan for DAO cells";
+  $("stickyScan").textContent = running ? "Scanning…" : "Scan for DAO cells";
+}
+
+function showProgress(on, note) {
+  $("progressPanel").hidden = !on;
+  if (on) {
+    var b = $("progBadge");
+    b.className = "badge info";
+    b.innerHTML = '<span class="dot"></span>Running';
+    $("progNote").textContent = note || "";
+    $("progBar").classList.add("indet");
+  }
+  setScanUi(on);
+}
+
+function renderProgress(p) {
+  var rows = [
+    ["Lock scripts resolved", p.identities],
+    ["Cell pages fetched", p.pages],
+    ["Candidate DAO cells", p.candidates],
+    ["Headers loaded", p.headers],
+    ["Transactions loaded", p.txs],
+    ["Records processed", p.total ? p.processed + " / " + p.total : p.processed]
+  ];
+  $("progGrid").innerHTML = rows.map(function (r) {
+    return '<div><span class="k">' + esc(r[0]) + '</span><span class="v">' + esc(String(r[1])) + "</span></div>";
+  }).join("");
+  if (p.total) {
+    $("progBar").classList.remove("indet");
+    $("progBar").firstElementChild.style.width = Math.round((p.processed / p.total) * 100) + "%";
+  }
+}
+
+function renderProgressNote() {
+  if (!state.warnings.length) return;
+  $("progNote").innerHTML = state.warnings.map(function (w) { return esc(w); }).join("<br>");
+}
+
+function renderConnection(caps, cfg) {
+  var b = $("connBadge");
+  var cls = caps.chainOk && caps.indexerOk ? "ok" : (caps.chainOk ? "warn" : "bad");
+  var txt = caps.chainOk && caps.indexerOk ? "Chain + indexer" : (caps.chainOk ? "Chain only" : "Unreachable");
+  b.className = "badge " + cls;
+  b.innerHTML = '<span class="dot"></span>' + esc(txt);
+
+  var rows = [];
+  rows.push(["Endpoint", cfg.rpcUrl]);
+  if (cfg.indexerUrl !== cfg.rpcUrl) rows.push(["Indexer", cfg.indexerUrl]);
+  rows.push(["Node version", caps.nodeVersion || "not reported"]);
+  rows.push(["Chain", caps.chainName || "not reported"]);
+  rows.push(["Genesis hash", caps.genesisHash ? midTrunc(caps.genesisHash, 12, 8) : "not reported"]);
+  if (caps.tipNumber !== null) rows.push(["Tip block", "#" + fmtInt(caps.tipNumber.toString())]);
+  if (caps.tipEpoch) rows.push(["Tip epoch", caps.tipEpoch.number + " + " + caps.tipEpoch.index + "/" + caps.tipEpoch.length]);
+  if (caps.tipTimestamp !== null) rows.push(["Tip time", fmtDate(caps.tipTimestamp)]);
+  rows.push(["Indexer method", caps.indexerOk ? caps.indexerTipMethod : "not available"]);
+  if (caps.indexerOk && caps.indexerTip && caps.indexerTip.block_number) {
+    rows.push(["Indexed to", "#" + fmtInt(numHexToBig(caps.indexerTip.block_number).toString())]);
+  }
+
+  var html = '<dl class="kv">' + rows.map(function (r) {
+    return "<dt>" + esc(r[0]) + "</dt><dd>" + esc(r[1]) + "</dd>";
+  }).join("") + "</dl>";
+
+  if (!caps.indexerOk) {
+    html += '<div class="notice warn" style="margin-top:10px"><strong>No indexer on this endpoint.</strong> ' +
+      'Cell search needs <span class="mono">get_cells</span>. Put an indexer URL in the field above, or run your node with the indexer enabled.</div>';
+  }
+  $("connDetail").innerHTML = html;
+}
+
+function renderIdentity(resolver, cfg) {
+  var cov = resolver.getResolutionCoverage();
+  var cb = $("coverageBadge");
+  cb.className = "badge " + cov.badge;
+  cb.innerHTML = '<span class="dot"></span>' + esc(cov.label);
+
+  var e = resolver.entered;
+  var html = "";
+
+  html += '<dl class="kv">';
+  html += "<dt>Entered</dt><dd>" + esc(midTrunc(e.address, 16, 12)) + "</dd>";
+  html += "<dt>Format</dt><dd>" + esc(e.formatLabel) + "</dd>";
+  html += "<dt>Lock</dt><dd>" + esc(resolver.describeLock(e.script)) + "</dd>";
+  html += "<dt>code_hash</dt><dd>" + esc(midTrunc(e.script.codeHash, 12, 8)) + " · " + esc(e.script.hashType) + "</dd>";
+  html += "</dl>";
+
+  if (e.note) html += '<div class="notice info">' + esc(e.note) + "</div>";
+
+  if (resolver.userArgs) {
+    html += '<div style="margin-top:10px"><span class="eyebrow">Account identifier (user args)</span>';
+    html += copyLine("account identifier", resolver.userArgs.hex, [14, 10]);
+    html += '<details style="margin-top:4px"><summary class="eyebrow" style="cursor:pointer;min-height:32px;display:flex;align-items:center">Show full value</summary>' +
+      '<div class="hash" style="padding:6px 0">' + esc(resolver.userArgs.hex) + "</div></details>";
+    html += '<div class="help">Read from ' + esc(resolver.userArgs.source) + ".</div></div>";
+  } else {
+    html += '<div class="notice warn"><strong>No account identifier.</strong> This lock\u2019s args are not a plain public key hash, so no other address of the wallet can be derived from it.</div>';
+  }
+
+  html += '<div style="margin-top:12px"><span class="eyebrow">Method</span><p style="font-size:12.5px;color:var(--text-2);margin:5px 0 0;line-height:1.55">' +
+    esc(resolver.describeResolutionMethod()) + "</p></div>";
+
+  html += '<div style="margin-top:12px"><span class="eyebrow">Lock scripts queried (' + resolver.scripts.length + ")</span>";
+  html += '<div style="margin-top:6px">';
+  resolver.scripts.forEach(function (s) {
+    html += '<div style="border:1px solid var(--line-soft);border-radius:8px;padding:8px 10px;margin-bottom:6px">';
+    html += '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><strong style="font-size:12.5px">' + esc(s.label) + "</strong>" +
+      badge(s.mode === "exact" ? "info" : "warn", s.mode + " match") + "</div>";
+    html += '<div class="hash" style="margin-top:4px">' + esc(midTrunc(s.script.codeHash, 10, 6)) + " · " + esc(s.script.hashType) + " · args " + esc(midTrunc(s.script.args, 12, 8)) + "</div>";
+    html += '<div class="help" style="margin-top:3px">Source: ' + esc(s.origin) + "</div>";
+    html += "</div>";
+  });
+  html += "</div></div>";
+
+  html += '<div class="notice warn" style="margin-top:10px"><strong>What this coverage means.</strong> ' + esc(cov.text) + "</div>";
+
+  if (resolver.limitations.length) {
+    html += '<div style="margin-top:8px"><span class="eyebrow">Not covered</span><ul style="margin:6px 0 0;padding-left:18px;font-size:12.5px;color:var(--text-2);line-height:1.55">';
+    resolver.limitations.forEach(function (l) { html += "<li style=\"margin-bottom:5px\">" + esc(l) + "</li>"; });
+    html += "</ul></div>";
+  }
+
+  $("identityBody").innerHTML = html;
+  $("identityPanel").hidden = false;
+  $("extraPanel").hidden = false;
+}
+
+function renderSummary() {
+  var s = state.summary, meta = state.scanMeta;
+  if (!s) { $("summaryPanel").hidden = true; return; }
+  var sb = $("sourceBadge");
+  if (state.source === "demo") { sb.className = "badge warn"; sb.innerHTML = '<span class="dot"></span>Demo data'; }
+  else { sb.className = "badge ok"; sb.innerHTML = '<span class="dot"></span>Live scan'; }
+
+  var cov = state.resolver ? state.resolver.getResolutionCoverage()
+    : { label: "Demo data", short: "Demo", text: "fictional records" };
+  var nextSub;
+  if (s.nextMaturity) {
+    var away = s.nextMaturity.at - Date.now();
+    nextSub = fmtDate(s.nextMaturity.at).slice(11) +
+      (away > 0 ? " · in " + fmtDuration(away / 1000) : " · now") + " (est.)";
+  } else {
+    nextSub = s.total ? "nothing pending" : "no positions";
+  }
+
+  var cards = [
+    { hero: true, lab: "Total deposited principal", val: fmtCkb(s.principal, 2) + " CKB",
+      sub: "across " + s.total + " live DAO cell" + (s.total === 1 ? "" : "s") },
+    { lab: "Estimated withdrawable", val: fmtCkb(s.withdrawable, 2), cls: "mint", sub: "CKB, principal + compensation" },
+    { lab: "Compensation", val: fmtCkb(s.compensation, 4), sub: "CKB, estimated or locked in" },
+    { lab: "Active deposits", val: String(s.deposits), cls: "mint", sub: s.deposits === 1 ? "earning now" : "earning now" },
+    { lab: "Withdrawing", val: String(s.withdrawing), cls: "violet", sub: s.mature + " mature · " + s.immature + " waiting" },
+    { lab: "Ready to collect", val: String(s.mature), cls: "mint", sub: "phase two available" },
+    { lab: "Next maturity", val: s.nextMaturity ? fmtDate(s.nextMaturity.at).slice(0, 10) : "—", sub: nextSub },
+    { lab: "Unresolved cells", val: String(s.unresolved), cls: s.unresolved ? "rose" : "",
+      sub: s.unresolved ? fmtCkb(s.unresolvedCapacity, 2) + " CKB kept out of totals" : "none" },
+    { lab: "Scan coverage", val: cov.short || cov.label, sub: cov.label }
+  ];
+
+  $("summaryCards").innerHTML = cards.map(function (c) {
+    return '<div class="card' + (c.hero ? " hero" : "") + '"><span class="lab">' + esc(c.lab) + "</span>" +
+      '<span class="val ' + (c.cls || "") + '">' + esc(c.val) + "</span>" +
+      '<span class="sub">' + esc(c.sub) + "</span></div>";
+  }).join("");
+
+  var notes = "";
+  if (state.source === "demo") {
+    notes += '<div class="notice warn"><strong>These are fictional records.</strong> No network call was made. Clear results before scanning a real address.</div>';
+  }
+  if (s.unresolved) {
+    notes += '<div class="notice bad"><strong>' + s.unresolved + " cell" + (s.unresolved === 1 ? "" : "s") + " could not be fully verified.</strong> " +
+      "They are listed under Unresolved and their " + esc(fmtCkb(s.unresolvedCapacity, 2)) + " CKB is deliberately excluded from every total above.</div>";
+  }
+  if (s.partial) {
+    notes += '<div class="notice warn"><strong>' + s.partial + " position" + (s.partial === 1 ? " is" : "s are") + " partially resolved.</strong> " +
+      "Their figures are shown but a dependency was missing; open the position to see which.</div>";
+  }
+  if (meta && meta.incomplete) {
+    notes += '<div class="notice warn"><strong>The cell search did not run to the end.</strong> Totals are a floor, not a complete portfolio.</div>';
+  }
+  if (state.warnings.length) {
+    notes += '<div class="notice info"><strong>During the scan:</strong><br>' + state.warnings.map(esc).join("<br>") + "</div>";
+  }
+  notes += '<div class="notice"><strong>Compensation figures are estimates.</strong> For deposits they use the current tip rate, which moves every block; ' +
+    "for withdrawing cells they are already fixed on chain. Epoch-based dates assume the 4-hour target epoch and will drift. Nothing here is a guaranteed return.</div>";
+  $("summaryNotes").innerHTML = notes;
+  $("summaryPanel").hidden = false;
+}
+
+function filteredRecords() {
+  var f = state.filter, q = state.search.trim().toLowerCase();
+  var list = state.records.filter(function (r) {
+    if (f === "deposits" && r.state !== "deposited") return false;
+    if (f === "withdrawing" && r.state.indexOf("withdrawing") !== 0) return false;
+    if (f === "mature" && r.state !== "withdrawing-mature") return false;
+    if (f === "immature" && r.state !== "withdrawing-immature") return false;
+    if (f === "unresolved" && r.state !== "unknown-or-invalid") return false;
+    if (!q) return true;
+    var hay = [
+      r.outPoint.txHash, r.id, r.lock.args, r.lock.codeHash, r.sourceAddress || "",
+      state.resolver && state.resolver.userArgs ? state.resolver.userArgs.hex : "", r.lockLabel
+    ].join(" ").toLowerCase();
+    return hay.indexOf(q) !== -1;
+  });
+
+  var s = state.sort;
+  list.sort(function (a, b) {
+    if (s === "principal") return cmpBig(b.capacity, a.capacity) || a.id.localeCompare(b.id);
+    if (s === "compensation") return cmpBig(b.compensation || 0n, a.compensation || 0n) || a.id.localeCompare(b.id);
+    if (s === "newest") return cmpBig(depNum(b), depNum(a)) || a.id.localeCompare(b.id);
+    if (s === "oldest") return cmpBig(depNum(a), depNum(b)) || a.id.localeCompare(b.id);
+    if (s === "maturity") return (matAt(a) - matAt(b)) || a.id.localeCompare(b.id);
+    return (STATES[a.state].order - STATES[b.state].order) || cmpBig(b.capacity, a.capacity) || a.id.localeCompare(b.id);
+  });
+  return list;
+}
+
+function cmpBig(a, b) { return a === b ? 0 : (a < b ? -1 : 1); }
+function depNum(r) { return r.depositHeader ? r.depositHeader.number : 0n; }
+function matAt(r) {
+  if (r.state === "withdrawing-mature") return -1;
+  if (r.matureAt) return r.matureAt;
+  if (r.nextWindowAt) return r.nextWindowAt;
+  return Number.MAX_SAFE_INTEGER;
+}
+
+function renderChips() {
+  var counts = { all: state.records.length, deposits: 0, withdrawing: 0, mature: 0, immature: 0, unresolved: 0 };
+  state.records.forEach(function (r) {
+    if (r.state === "deposited") counts.deposits++;
+    else if (r.state === "withdrawing-mature") { counts.withdrawing++; counts.mature++; }
+    else if (r.state === "withdrawing-immature") { counts.withdrawing++; counts.immature++; }
+    else counts.unresolved++;
+  });
+  var defs = [
+    ["all", "All"], ["deposits", "Deposits"], ["withdrawing", "Withdrawing"],
+    ["mature", "Mature"], ["immature", "Waiting"], ["unresolved", "Unresolved"]
+  ];
+  $("filterChips").innerHTML = defs.map(function (d) {
+    return '<button type="button" class="chip" data-filter="' + d[0] + '" aria-pressed="' +
+      (state.filter === d[0]) + '">' + esc(d[1]) + '<span class="n">' + counts[d[0]] + "</span></button>";
+  }).join("");
+}
+
+function renderPositions() {
+  var list = filteredRecords();
+  $("resultCount").textContent = list.length + " of " + state.records.length + " position" + (state.records.length === 1 ? "" : "s") + " shown";
+  if (!list.length) {
+    $("positions").innerHTML = '<div class="panel empty"><h3>Nothing matches this filter</h3>' +
+      "<p>Clear the search box or pick a different state above.</p></div>";
+    return;
+  }
+  $("positions").innerHTML = list.map(renderPosition).join("");
+}
+
+function rulerFor(r) {
+  var fill = 0, startLab = "—", endLab = "—", cap = "", cls = "";
+  if (r.state === "deposited" && r.cycle) {
+    fill = Number(r.cycle.epochsIntoCycle) / 180;
+    startLab = "epoch " + (r.cycle.cycleEndEpoch.number - LOCK_PERIOD_EPOCHS);
+    endLab = "epoch " + r.cycle.cycleEndEpoch.number;
+    cap = "Lock cycle " + r.cycle.cycleNumber + " — " + r.cycle.epochsIntoCycle + " of 180 epochs elapsed, " +
+      r.cycle.epochsRemaining + " to go (about " + fmtDuration(epochsToSeconds(r.cycle.epochsRemaining)) + ").";
+    cls = "";
+  } else if (r.state.indexOf("withdrawing") === 0 && r.depositHeader && r.maturityEpoch) {
+    var span = Number(r.lockEpochs || 180n);
+    var done = span - Number(r.epochsRemaining || 0n);
+    fill = span > 0 ? Math.max(0, Math.min(1, done / span)) : 1;
+    startLab = "epoch " + r.depositHeader.epoch.number;
+    endLab = "epoch " + r.maturityEpoch.number;
+    cap = r.mature
+      ? "The lock period is complete. Phase two can be submitted with since " + r.since.sinceHex + "."
+      : r.epochsRemaining + " epoch" + (r.epochsRemaining === 1n ? "" : "s") + " left, about " + fmtDuration(r.remainingSeconds) + ".";
+    cls = r.mature ? "gold" : "violet";
+  } else {
+    return "";
+  }
+  var pct = Math.max(0, Math.min(100, fill * 100));
+  return '<div class="ruler"><div class="ruler-scale">' +
+    '<div class="ruler-fill ' + cls + '" style="width:' + pct.toFixed(2) + '%"></div>' +
+    '<div class="ruler-now" style="left:calc(' + pct.toFixed(2) + '% - 1px)"></div>' +
+    '</div><div class="ruler-base"></div>' +
+    '<div class="ruler-legend"><span><b>' + esc(startLab) + "</b></span><span>" + pct.toFixed(0) + "%</span><span><b>" + esc(endLab) + "</b></span></div>" +
+    '<div class="ruler-cap">' + esc(cap) + "</div></div>";
+}
+
+function renderPosition(r) {
+  var st = STATES[r.state];
+  var h = '<article class="pos' + (r.demo ? " demo" : "") + '" id="pos-' + esc(r.id.replace(/[^a-zA-Z0-9]/g, "")) + '">';
+
+  h += '<div class="pos-head">' + badge(st.badge, st.label);
+  if (r.partial) h += badge("warn", "partial");
+  if (r.demo) h += badge("warn", "demo");
+  if (r.estimated === true) h += badge("info", "estimate");
+  if (r.estimated === false) h += badge("ok", "fixed on chain");
+  h += '<span class="pos-idx">' + esc(midTrunc(r.outPoint.txHash, 8, 6)) + ":" + r.outPoint.index + "</span></div>";
+
+  h += '<div class="pos-body">';
+  h += '<div class="amounts">';
+  h += '<div class="amt"><span class="lab">Principal</span><span class="v gold">' + esc(fmtCkb(r.capacity, 4)) + '<span class="u">CKB</span></span></div>';
+  h += '<div class="amt"><span class="lab">' + (r.estimated === false ? "Locked-in compensation" : "Compensation") + '</span><span class="v mint">' +
+    (r.compensation === null ? "—" : esc(fmtCkb(r.compensation, 8))) + '<span class="u">CKB</span></span></div>';
+  h += '<div class="amt"><span class="lab">' + (r.estimated === false ? "Locked-in total" : "Estimated total") + '</span><span class="v">' +
+    (r.maxWithdraw === null ? "—" : esc(fmtCkb(r.maxWithdraw, 4))) + '<span class="u">CKB</span></span></div>';
+  h += '<div class="amt"><span class="lab">Annualised</span><span class="v">' +
+    (r.apc === null || r.apc === undefined ? "—" : esc((r.apc * 100).toFixed(2)) + "<span class=\"u\">% est.</span>") + "</span></div>";
+  h += "</div>";
+
+  h += rulerFor(r);
+
+  h += '<div class="pos-meta">';
+  h += metaCell("Lock variant", r.lockLabel);
+  h += metaCell("Found via", r.resolutionSource);
+  if (r.depositHeader) {
+    h += metaCell("Deposited", fmtDate(r.depositHeader.timestamp));
+    h += metaCell("Deposit epoch", r.depositHeader.epoch.number + " + " + r.depositHeader.epoch.index + "/" + r.depositHeader.epoch.length);
+  }
+  if (r.withdrawHeader) {
+    h += metaCell("Phase one at", fmtDate(r.withdrawHeader.timestamp));
+    h += metaCell("Withdrawal epoch", r.withdrawHeader.epoch.number + " + " + r.withdrawHeader.epoch.index + "/" + r.withdrawHeader.epoch.length);
+  }
+  if (r.state === "deposited") {
+    h += metaCell("Phase one now?", r.phaseOneAvailable ? "Yes" : "Not yet — a header needs 4 epochs of maturity");
+    if (r.ifWithdrawnNow) h += metaCell("If started now, unlocks at", "epoch " + r.ifWithdrawnNow.epoch.number);
+  }
+  if (r.state === "withdrawing-immature") {
+    h += metaCell("Matures at", "epoch " + r.maturityEpoch.number + " · " + fmtDate(r.matureAt) + " (est.)");
+  }
+  if (r.state === "withdrawing-mature") {
+    h += metaCell("Matured at", "epoch " + r.maturityEpoch.number);
+  }
+  if (r.sourceAddress) h += metaCell("Source address", midTrunc(r.sourceAddress, 12, 10));
+  h += "</div>";
+
+  h += copyLine("outpoint", r.outPoint.txHash + ":" + r.outPoint.index, [18, 12]);
+
+  if (r.missing && r.missing.length) {
+    h += '<div class="notice bad" style="margin-top:10px"><strong>Missing dependencies</strong><br>' +
+      r.missing.map(esc).join("<br>") + "</div>";
+  }
+  if (r.verification && r.verification.notes && r.verification.notes.length) {
+    h += '<div class="notice warn" style="margin-top:10px"><strong>Structure check</strong><br>' +
+      r.verification.notes.map(esc).join("<br>") + "</div>";
+  }
+
+  h += renderTech(r);
+  h += "</div></article>";
+  return h;
+}
+
+function metaCell(k, v) {
+  return '<div><span class="k">' + esc(k) + '</span><span class="v">' + esc(v) + "</span></div>";
+}
+
+function renderTech(r) {
+  var explorer = state.source === "demo" ? "" : (state.cfg && state.cfg.explorer) || "";
+  var h = '<details class="tech"><summary>Technical detail</summary><div class="techbody">';
+
+  h += '<div class="techgrp"><h4>Cell</h4><dl class="kv">';
+  h += "<dt>capacity</dt><dd class=\"mono\">" + esc(r.capacity.toString()) + " shannons</dd>";
+  h += "<dt>occupied</dt><dd class=\"mono\">" + esc(r.occupied.toString()) + " shannons</dd>";
+  h += "<dt>counted</dt><dd class=\"mono\">" + esc((r.capacity - r.occupied).toString()) + " shannons</dd>";
+  h += "<dt>data</dt><dd class=\"mono\">" + esc(r.data) + "</dd>";
+  h += "<dt>block</dt><dd class=\"mono\">#" + esc(r.blockNumber.toString()) + (r.txIndex === null ? "" : " · tx index " + r.txIndex) + "</dd>";
+  h += "<dt>outpoint</dt><dd class=\"mono\" style=\"word-break:break-all\">" + esc(r.outPoint.txHash) + " : " + r.outPoint.index + "</dd>";
+  if (r.depositBlockNumber !== undefined) h += "<dt>deposit block in data</dt><dd class=\"mono\">#" + esc(r.depositBlockNumber.toString()) + "</dd>";
+  if (r.matchedBy && r.matchedBy.length > 1) h += "<dt>matched by</dt><dd>" + esc(r.matchedBy.join(", ")) + "</dd>";
+  h += "</dl></div>";
+
+  h += '<div class="techgrp"><h4>Lock script</h4><div class="formula">code_hash ' + esc(r.lock.codeHash) +
+    "<br>hash_type " + esc(r.lock.hashType) + "<br>args " + esc(r.lock.args) + "</div></div>";
+  h += '<div class="techgrp"><h4>Type script</h4><div class="formula">code_hash ' + esc(r.type ? r.type.codeHash : "none") +
+    "<br>hash_type " + esc(r.type ? r.type.hashType : "—") + "<br>args " + esc(r.type ? r.type.args : "—") + "</div></div>";
+
+  ["depositHeader", "withdrawHeader"].forEach(function (k) {
+    var hd = r[k];
+    if (!hd) return;
+    h += '<div class="techgrp"><h4>' + (k === "depositHeader" ? "Deposit header" : "Withdrawal header") + "</h4><dl class=\"kv\">";
+    h += "<dt>number</dt><dd class=\"mono\">#" + esc(hd.number.toString()) + "</dd>";
+    h += "<dt>hash</dt><dd class=\"mono\" style=\"word-break:break-all\">" + esc(hd.hash) + "</dd>";
+    h += "<dt>epoch raw</dt><dd class=\"mono\">" + esc(hd.epoch.raw) + "</dd>";
+    h += "<dt>epoch</dt><dd class=\"mono\">number " + hd.epoch.number + " · index " + hd.epoch.index + " · length " + hd.epoch.length + "</dd>";
+    h += "<dt>timestamp</dt><dd class=\"mono\">" + esc(hd.timestamp.toString()) + " (" + esc(fmtDate(hd.timestamp)) + ")</dd>";
+    h += "<dt>dao</dt><dd class=\"mono\" style=\"word-break:break-all\">" + esc(hd.dao) + "</dd>";
+    h += "<dt>AR</dt><dd class=\"mono\">" + esc(hd.ar.toString()) + "</dd>";
+    h += "<dt>C / S / U</dt><dd class=\"mono\">" + esc(hd.daoParts.c) + " / " + esc(hd.daoParts.s) + " / " + esc(hd.daoParts.u) + "</dd>";
+    h += "</dl></div>";
+  });
+
+  if (r.formula) {
+    h += '<div class="techgrp"><h4>Calculation</h4><div class="formula">';
+    h += esc(r.formula.rule) + "<br>";
+    Object.keys(r.formula).forEach(function (k) {
+      if (k === "rule") return;
+      h += esc(k) + " = " + esc(String(r.formula[k])) + "<br>";
+    });
+    h += "</div></div>";
+  }
+
+  if (r.since) {
+    h += '<div class="techgrp"><h4>Phase two since value</h4><div class="formula">' + esc(r.since.sinceHex) +
+      "<br>absolute epoch " + r.since.epoch.number + " + " + r.since.epoch.index + "/" + r.since.epoch.length + "</div></div>";
+  }
+
+  h += '<div class="techgrp"><h4>Resolution</h4><dl class="kv"><dt>source</dt><dd>' + esc(r.resolutionSource) + "</dd>" +
+    "<dt>lock variant</dt><dd>" + esc(r.lockLabel) + "</dd></dl></div>";
+
+  if (explorer && !r.demo) {
+    h += '<div class="links"><a href="' + esc(explorer + "/transaction/" + r.outPoint.txHash) + '" target="_blank" rel="noopener noreferrer nofollow">Transaction \u2197</a>';
+    if (r.depositHeader) h += '<a href="' + esc(explorer + "/block/" + r.depositHeader.hash) + '" target="_blank" rel="noopener noreferrer nofollow">Deposit block \u2197</a>';
+    if (r.withdrawHeader) h += '<a href="' + esc(explorer + "/block/" + r.withdrawHeader.hash) + '" target="_blank" rel="noopener noreferrer nofollow">Withdrawal block \u2197</a>';
+    h += "</div>";
+  }
+
+  h += "</div></details>";
+  return h;
+}
+
+function renderAll() {
+  renderSummary();
+  renderChips();
+  renderPositions();
+  $("toolbarPanel").hidden = state.records.length === 0;
+  $("resultsPanel").hidden = state.records.length === 0;
+}
+
+function renderEmptyState(resolver, incomplete) {
+  var cov = resolver ? resolver.getResolutionCoverage() : null;
+  var msg;
+  if (incomplete) {
+    msg = "The search stopped before it finished, so this is not a statement that the wallet holds nothing. Raise the page limit or retry.";
+  } else if (cov && (resolver.coverage === "user-args" || resolver.coverage === "user-args+manual")) {
+    msg = "Every lock variant in the table was queried to the last page and none holds a live Nervos DAO cell. Locks outside the table were not searched.";
+  } else {
+    msg = "Only the exact lock script of the entered address was searched, and it holds no live DAO cell. Other addresses of the same wallet were not checked \u2014 paste them above to include them.";
+  }
+  $("resultsPanel").hidden = false;
+  $("toolbarPanel").hidden = true;
+  $("positions").innerHTML = '<div class="panel empty"><h3>No live DAO cells found</h3><p>' + esc(msg) + "</p></div>";
+}
+/* =====================================================================
+   15. ERROR PRESENTATION
+   ===================================================================== */
+
+function hideError() { $("errorPanel").hidden = true; $("errorPanel").innerHTML = ""; }
+
+function showError(title, message, diagnostics, tone) {
+  var h = '<div class="panel"><div class="notice ' + (tone || "bad") + '" style="margin-bottom:' + (diagnostics ? "10px" : "0") + '">' +
+    "<strong>" + esc(title) + "</strong><br>" + esc(message) + "</div>";
+  if (diagnostics) {
+    h += '<details class="tech" style="border-top:0;margin-top:0"><summary>Diagnostics</summary>' +
+      '<div class="techbody"><div class="formula">' + esc(diagnostics) + "</div></div></details>";
+  }
+  h += "</div>";
+  $("errorPanel").innerHTML = h;
+  $("errorPanel").hidden = false;
+  $("errorPanel").scrollIntoView({ block: "nearest", behavior: "smooth" });
+}
+
+var ERROR_GUIDANCE = {
+  "timeout": "Raise the request timeout in Connection, or try a different endpoint.",
+  "network": "Check the URL and that the node is running. If this page is on https and the node is on http, the browser blocks the call — open this file locally instead.",
+  "rate-limit": "Lower the parallel request count in Advanced, or run your own node.",
+  "unsupported-method": "This endpoint is missing a method the scan needs. A separate indexer URL usually fixes it.",
+  "indexer-missing": "Add an indexer endpoint in Connection.",
+  "malformed": "The endpoint replied with something that is not a CKB JSON-RPC response. Check that the URL points at the RPC path.",
+  "http": "The endpoint returned an HTTP error. Check the URL path — many nodes serve RPC at /rpc.",
+  "rpc": "The node rejected the request."
+};
+
+function showErrorFromException(err) {
+  var kind = err && err.kind;
+  var title = kind === "timeout" ? "Request timed out"
+    : kind === "network" ? "Endpoint unreachable"
+    : kind === "rate-limit" ? "Rate limited"
+    : kind === "unsupported-method" ? "Method not supported"
+    : kind === "indexer-missing" ? "No indexer available"
+    : kind === "malformed" ? "Unexpected reply"
+    : "Scan stopped";
+  var msg = (err && err.message) || String(err);
+  var extra = (err && err.extraGuidance) || ERROR_GUIDANCE[kind] || "";
+  var diag = null;
+  try {
+    diag = JSON.stringify({ name: err && err.name, kind: kind, message: msg, detail: err && err.detail, stack: err && err.stack ? String(err.stack).split("\n").slice(0, 6) : null }, null, 2);
+  } catch (e) { diag = String(err); }
+  showError(title, msg + (extra ? " " + extra : ""), diag, "bad");
+}
+
+/* =====================================================================
+   16. EXPORT
+   ===================================================================== */
+
+function bigReplacer(key, value) { return typeof value === "bigint" ? value.toString() : value; }
+
+function buildExportObject() {
+  var r = state.resolver;
+  return {
+    generator: "Cell Ledger — read-only Nervos DAO viewer",
+    scannedAt: (state.scanMeta && state.scanMeta.at) || new Date().toISOString(),
+    source: state.source,
+    network: state.cfg ? state.cfg.network : null,
+    endpoints: state.cfg ? { rpc: state.cfg.rpcUrl, indexer: state.cfg.indexerUrl } : null,
+    chainTip: state.scanMeta ? { block: state.scanMeta.tipNumber, epoch: state.scanMeta.tipEpoch } : null,
+    enteredAddress: r && r.entered ? r.entered.address : null,
+    enteredLock: r && r.entered ? r.entered.script : null,
+    userArgs: r && r.userArgs ? r.userArgs.hex : null,
+    userArgsSource: r ? r.userArgsSource : null,
+    resolutionMethod: r ? r.describeResolutionMethod() : null,
+    coverage: r ? { level: r.coverage, label: r.getResolutionCoverage().label, meaning: r.getResolutionCoverage().text } : null,
+    limitations: r ? r.limitations : [],
+    resolvedLockScripts: r ? r.scripts.map(function (s) {
+      return { label: s.label, origin: s.origin, searchMode: s.mode, script: s.script, address: s.address };
+    }) : [],
+    scanWarnings: state.warnings,
+    summary: state.summary ? {
+      totalPositions: state.summary.total,
+      activeDeposits: state.summary.deposits,
+      withdrawing: state.summary.withdrawing,
+      mature: state.summary.mature,
+      immature: state.summary.immature,
+      unresolved: state.summary.unresolved,
+      principalShannons: state.summary.principal.toString(),
+      estimatedWithdrawableShannons: state.summary.withdrawable.toString(),
+      compensationShannons: state.summary.compensation.toString(),
+      unresolvedCapacityShannons: state.summary.unresolvedCapacity.toString(),
+      excludedFromTotals: "unresolved cells"
+    } : null,
+    positions: state.records.map(function (p) {
+      return {
+        outPoint: p.outPoint,
+        state: p.state,
+        partiallyResolved: !!p.partial,
+        missingDependencies: p.missing,
+        demo: !!p.demo,
+        lockVariant: p.lockLabel,
+        foundVia: p.resolutionSource,
+        sourceAddress: p.sourceAddress,
+        lock: p.lock,
+        type: p.type,
+        data: p.data,
+        blockNumber: p.blockNumber,
+        capacityShannons: p.capacity,
+        occupiedShannons: p.occupied,
+        countedShannons: p.capacity - p.occupied,
+        depositHeader: p.depositHeader ? {
+          number: p.depositHeader.number, hash: p.depositHeader.hash, dao: p.depositHeader.dao,
+          ar: p.depositHeader.ar, timestamp: p.depositHeader.timestamp,
+          epoch: { number: p.depositHeader.epoch.number, index: p.depositHeader.epoch.index, length: p.depositHeader.epoch.length, raw: p.depositHeader.epoch.raw }
+        } : null,
+        withdrawHeader: p.withdrawHeader ? {
+          number: p.withdrawHeader.number, hash: p.withdrawHeader.hash, dao: p.withdrawHeader.dao,
+          ar: p.withdrawHeader.ar, timestamp: p.withdrawHeader.timestamp,
+          epoch: { number: p.withdrawHeader.epoch.number, index: p.withdrawHeader.epoch.index, length: p.withdrawHeader.epoch.length, raw: p.withdrawHeader.epoch.raw }
+        } : null,
+        calculationInputs: p.formula,
+        maximumWithdrawShannons: p.maxWithdraw,
+        compensationShannons: p.compensation,
+        compensationIsEstimate: p.estimated,
+        annualisedEstimate: p.apc,
+        minimalSince: p.since ? p.since.sinceHex : null,
+        maturityEpoch: p.maturityEpoch ? p.maturityEpoch.number : null,
+        verification: p.verification || null
+      };
+    })
+  };
+}
+
+function download(filename, text, mime) {
+  var blob = new Blob([text], { type: mime });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement("a");
+  a.href = url; a.download = filename; a.rel = "noopener";
+  document.body.appendChild(a); a.click();
+  setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 1500);
+}
+
+function exportJson() {
+  if (!state.records.length) { showError("Nothing to export", "Run a scan, or load the demo data, first.", null, "info"); return; }
+  download("cell-ledger-" + Date.now() + ".json", JSON.stringify(buildExportObject(), bigReplacer, 2), "application/json");
+}
+
+function csvCell(v) {
+  if (v === null || v === undefined) return "";
+  var s = String(v);
+  return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+
+function exportCsv() {
+  if (!state.records.length) { showError("Nothing to export", "Run a scan, or load the demo data, first.", null, "info"); return; }
+  var r = state.resolver;
+  var meta = [
+    ["# generator", "Cell Ledger — read-only Nervos DAO viewer"],
+    ["# scanned_at", (state.scanMeta && state.scanMeta.at) || new Date().toISOString()],
+    ["# source", state.source],
+    ["# network", state.cfg ? state.cfg.network : ""],
+    ["# rpc_endpoint", state.cfg ? state.cfg.rpcUrl : ""],
+    ["# indexer_endpoint", state.cfg ? state.cfg.indexerUrl : ""],
+    ["# entered_address", r && r.entered ? r.entered.address : ""],
+    ["# user_args", r && r.userArgs ? r.userArgs.hex : ""],
+    ["# resolution_method", r ? r.describeResolutionMethod() : ""],
+    ["# coverage", r ? r.coverage : ""],
+    ["# resolved_lock_scripts", r ? r.scripts.map(function (s) { return s.script.codeHash + ":" + s.script.args + "(" + s.mode + ")"; }).join(" ") : ""],
+    ["# warnings", state.warnings.join(" | ")]
+  ].map(function (row) { return row.map(csvCell).join(","); }).join("\n");
+
+  var head = ["out_point", "state", "partially_resolved", "missing_dependencies", "lock_variant", "found_via",
+    "source_address", "lock_code_hash", "lock_hash_type", "lock_args", "cell_data", "block_number",
+    "capacity_shannons", "occupied_shannons", "counted_shannons", "deposit_block", "deposit_epoch",
+    "deposit_timestamp", "deposit_ar", "withdraw_block", "withdraw_epoch", "withdraw_timestamp", "withdraw_ar",
+    "max_withdraw_shannons", "compensation_shannons", "compensation_is_estimate", "annualised_estimate",
+    "minimal_since", "maturity_epoch", "formula"];
+
+  var rows = state.records.map(function (p) {
+    return [
+      p.outPoint.txHash + ":" + p.outPoint.index, p.state, p.partial ? "yes" : "no", p.missing.join(" | "),
+      p.lockLabel, p.resolutionSource, p.sourceAddress || "", p.lock.codeHash, p.lock.hashType, p.lock.args,
+      p.data, p.blockNumber.toString(), p.capacity.toString(), p.occupied.toString(), (p.capacity - p.occupied).toString(),
+      p.depositHeader ? p.depositHeader.number.toString() : "",
+      p.depositHeader ? p.depositHeader.epoch.number + "+" + p.depositHeader.epoch.index + "/" + p.depositHeader.epoch.length : "",
+      p.depositHeader ? p.depositHeader.timestamp.toString() : "",
+      p.depositHeader ? p.depositHeader.ar.toString() : "",
+      p.withdrawHeader ? p.withdrawHeader.number.toString() : "",
+      p.withdrawHeader ? p.withdrawHeader.epoch.number + "+" + p.withdrawHeader.epoch.index + "/" + p.withdrawHeader.epoch.length : "",
+      p.withdrawHeader ? p.withdrawHeader.timestamp.toString() : "",
+      p.withdrawHeader ? p.withdrawHeader.ar.toString() : "",
+      p.maxWithdraw === null ? "" : p.maxWithdraw.toString(),
+      p.compensation === null ? "" : p.compensation.toString(),
+      p.estimated === null ? "" : (p.estimated ? "yes" : "no"),
+      p.apc === null || p.apc === undefined ? "" : p.apc.toFixed(6),
+      p.since ? p.since.sinceHex : "",
+      p.maturityEpoch ? p.maturityEpoch.number.toString() : "",
+      p.formula ? JSON.stringify(p.formula) : ""
+    ].map(csvCell).join(",");
+  });
+
+  download("cell-ledger-" + Date.now() + ".csv", meta + "\n" + head.map(csvCell).join(",") + "\n" + rows.join("\n"), "text/csv");
+}
+
+/* =====================================================================
+   17. OPTIONAL CCC CROSS-CHECK
+   ===================================================================== */
+
+async function loadCcc() {
+  var url = $("cccUrl").value.trim();
+  if (!$("cccEnable").checked || !url) {
+    state.ccc = { enabled: false, url: url, status: "off", module: null, mismatches: [] };
+    renderDepStatus();
+    return null;
+  }
+  if (state.ccc.module && state.ccc.url === url) return state.ccc.module;
+  try { new URL(url); } catch (e) {
+    state.ccc = { enabled: true, url: url, status: "bad-url", module: null, mismatches: [] };
+    renderDepStatus(); return null;
+  }
+  state.ccc = { enabled: true, url: url, status: "loading", module: null, mismatches: [] };
+  renderDepStatus();
+  try {
+    var mod = await import(/* webpackIgnore: true */ url);
+    var ccc = mod.ccc || mod;
+    if (!ccc || !ccc.Address) throw new Error("The module loaded but does not expose an Address helper.");
+    state.ccc = { enabled: true, url: url, status: "ready", module: ccc, mismatches: [] };
+  } catch (e) {
+    state.ccc = { enabled: true, url: url, status: "failed", module: null, mismatches: [], error: String(e && e.message || e) };
+  }
+  renderDepStatus();
+  return state.ccc.module;
+}
+
+async function cccCrossCheck(decoded) {
+  var mod = await loadCcc();
+  if (!mod || !decoded) return;
+  try {
+    var client = null;
+    if (mod.ClientPublicMainnet && decoded.prefix === "ckb") client = new mod.ClientPublicMainnet();
+    else if (mod.ClientPublicTestnet) client = new mod.ClientPublicTestnet();
+    var addr = await mod.Address.fromString(decoded.address, client);
+    var s = addr.script;
+    var theirs = {
+      codeHash: String(s.codeHash).toLowerCase(),
+      hashType: String(s.hashType),
+      args: String(s.args).toLowerCase()
+    };
+    var mine = {
+      codeHash: decoded.script.codeHash.toLowerCase(),
+      hashType: decoded.script.hashType,
+      args: decoded.script.args.toLowerCase()
+    };
+    if (theirs.codeHash !== mine.codeHash || theirs.hashType !== mine.hashType || theirs.args !== mine.args) {
+      state.ccc.mismatches.push({ address: decoded.address, builtin: mine, ccc: theirs });
+      state.ccc.status = "mismatch";
+    } else {
+      state.ccc.status = "agreed";
+    }
+  } catch (e) {
+    state.ccc.status = "check-failed";
+    state.ccc.error = String(e && e.message || e);
+  }
+  renderDepStatus();
+}
+
+function renderDepStatus() {
+  var c = state.ccc, h = "";
+  if (!c.enabled) {
+    h = '<div class="notice"><strong>Built-in decoder only.</strong> Addresses are decoded by the bech32m implementation in this file, following RFC 0021, so the page works with no network access at all.</div>';
+  } else if (c.status === "loading") {
+    h = '<div class="notice info">Loading the cross-check module…</div>';
+  } else if (c.status === "failed") {
+    h = '<div class="notice bad"><strong>The cross-check module did not load.</strong> ' + esc(c.error || "") +
+      " Address decoding still ran on the built-in implementation, and the scan results below are not affected.</div>";
+  } else if (c.status === "bad-url") {
+    h = '<div class="notice bad"><strong>That is not a valid URL.</strong> Use a pinned ESM build, for example https://esm.sh/@ckb-ccc/core@X.Y.Z.</div>';
+  } else if (c.status === "check-failed") {
+    h = '<div class="notice warn"><strong>The module loaded but the cross-check failed.</strong> ' + esc(c.error || "") + "</div>";
+  } else if (c.status === "mismatch") {
+    h = '<div class="notice bad"><strong>CCC decoded this address differently.</strong> Treat the results with suspicion and report it. ' +
+      esc(JSON.stringify(c.mismatches[c.mismatches.length - 1])) + "</div>";
+  } else if (c.status === "agreed") {
+    h = '<div class="notice ok"><strong>CCC agrees with the built-in decoder</strong> on the lock script for this address.</div>';
+  } else {
+    h = '<div class="notice ok">Cross-check module ready.</div>';
+  }
+  $("depStatus").innerHTML = h;
+}
+
+/* =====================================================================
+   18. DEMO DATA
+   ===================================================================== */
+
+function demoHeader(number, epochNumber, epochIndex, epochLength, ar, timestamp) {
+  var epoch = (BigInt(epochLength) << 40n) | (BigInt(epochIndex) << 24n) | BigInt(epochNumber);
+  var dao = "0x" + le(1234567890123n) + le(BigInt(ar)) + le(9876543210n) + le(5555555555n);
+  return {
+    number: "0x" + BigInt(number).toString(16),
+    hash: "0x" + String(number).padStart(6, "7").repeat(11).slice(0, 64),
+    epoch: "0x" + epoch.toString(16),
+    timestamp: "0x" + BigInt(timestamp).toString(16),
+    dao: dao
+  };
+  function le(v) {
+    var s = "";
+    for (var i = 0; i < 8; i++) { s += (Number((v >> BigInt(8 * i)) & 0xffn)).toString(16).padStart(2, "0"); }
+    return s;
+  }
+}
+
+function loadDemo() {
+  cancelScan();
+  state.source = "demo";
+  state.warnings = ["Demo mode is on. Every figure below is fictional and no request was sent anywhere."];
+  state.resolver = null;
+  state.cfg = null;
+  $("identityPanel").hidden = true;
+  $("extraPanel").hidden = true;
+
+  var now = Date.now();
+  var tipEpoch = parseEpoch(demoHeader(0, 12000, 900, 1800, 0, 0).epoch);
+  var tipTs = BigInt(now);
+  var demoLock = { codeHash: LOCK_REGISTRY.mainnet[0].codeHash, hashType: "type", args: "0x" + "ab".repeat(20) };
+  var daoType = { codeHash: DAO_SCRIPT.mainnet.codeHash, hashType: "type", args: "0x" };
+
+  function mk(id, dataHex, capacityCkb, depositH, withdrawH, lockLabel) {
+    var capacity = BigInt(capacityCkb) * SHANNONS_PER_CKB;
+    var occupied = occupiedCapacity({ lock: demoLock, type: daoType }, dataHex);
+    return {
+      id: id, demo: true,
+      outPoint: { txHash: "0x" + id.replace(/[^0-9a-f]/g, "d").padEnd(64, "d").slice(0, 64), index: 0 },
+      blockNumber: numHexToBig((withdrawH || depositH).number),
+      txIndex: 3,
+      capacity: capacity, occupied: occupied,
+      lock: demoLock, type: daoType, data: dataHex,
+      lockLabel: lockLabel, resolutionSource: "demo record", sourceAddress: null, matchedBy: [lockLabel],
+      state: "unknown-or-invalid", partial: false, missing: [],
+      depositHeader: null, withdrawHeader: null,
+      maxWithdraw: null, compensation: null, estimated: null, apc: null, formula: null
+    };
+  }
+
+  var ctx = { tipDao: decodeDaoField(demoHeader(0, 0, 0, 1, 20000000000000000n, 0).dao), tipEpoch: tipEpoch, tipNumber: 14000000n, tipTimestamp: tipTs };
+  var records = [];
+
+  /* 1. an active deposit, part way through its second lock cycle */
+  var dep1 = summariseHeader(demoHeader(11500000, 11750, 400, 1800, 19743000000000000n, now - 1000 * 3600 * 24 * 190));
+  var r1 = mk("demo-active-deposit", "0x0000000000000000", 250000, demoHeader(11500000, 11750, 400, 1800, 19743000000000000n, now - 1000 * 3600 * 24 * 190), null, "SECP256K1/blake160 (default lock)");
+  r1.depositHeader = dep1;
+  r1.state = "deposited";
+  r1.maxWithdraw = maximumWithdraw(r1.capacity, r1.occupied, dep1.ar, ctx.tipDao.ar);
+  r1.compensation = r1.maxWithdraw - r1.capacity;
+  r1.estimated = true;
+  r1.cycle = cyclePosition(dep1.epoch, tipEpoch);
+  r1.phaseOneAvailable = true;
+  r1.nextWindowEpoch = r1.cycle.cycleEndEpoch;
+  r1.nextWindowSeconds = epochsToSeconds(r1.cycle.epochsRemaining);
+  r1.nextWindowAt = now + r1.nextWindowSeconds * 1000;
+  r1.ifWithdrawnNow = minimalSince(dep1.epoch, r1.cycle.lockEpochsIfWithdrawnNow);
+  r1.ageMs = Number(tipTs - dep1.timestamp);
+  r1.apc = annualised(r1.compensation, r1.capacity - r1.occupied, r1.ageMs);
+  r1.formula = { rule: "maximum_withdraw = occupied + (capacity - occupied) * AR_now / AR_deposit",
+    capacity: r1.capacity.toString(), occupied: r1.occupied.toString(), counted: (r1.capacity - r1.occupied).toString(),
+    ar_deposit: dep1.ar.toString(), ar_reference: ctx.tipDao.ar.toString(), ar_reference_source: "demo tip header", result: r1.maxWithdraw.toString() };
+  records.push(r1);
+
+  /* 2. a withdrawing cell that is still inside its lock period */
+  var dep2h = demoHeader(11900000, 11930, 100, 1800, 19600000000000000n, now - 1000 * 3600 * 24 * 100);
+  var wd2h = demoHeader(12400000, 12010, 200, 1800, 19707800000000000n, now - 1000 * 3600 * 24 * 20);
+  var r2 = mk("demo-immature-withdrawal", "0x" + leHexOf(11900000n), 60000, dep2h, wd2h, "Omnilock (secp256k1 auth)");
+  r2.depositHeader = summariseHeader(dep2h);
+  r2.withdrawHeader = summariseHeader(wd2h);
+  r2.depositBlockNumber = 11900000n;
+  finishDemoWithdrawing(r2, ctx);
+  records.push(r2);
+
+  /* 3. a withdrawing cell whose lock period is complete */
+  var dep3h = demoHeader(10000000, 10500, 0, 1800, 18000000000000000n, now - 1000 * 3600 * 24 * 400);
+  var wd3h = demoHeader(10900000, 10650, 900, 1800, 18086400000000000n, now - 1000 * 3600 * 24 * 330);
+  var r3 = mk("demo-mature-withdrawal", "0x" + leHexOf(10000000n), 1000000, dep3h, wd3h, "Anyone-can-pay");
+  r3.depositHeader = summariseHeader(dep3h);
+  r3.withdrawHeader = summariseHeader(wd3h);
+  r3.depositBlockNumber = 10000000n;
+  finishDemoWithdrawing(r3, ctx);
+  records.push(r3);
+
+  /* 4. a cell that cannot be verified */
+  var r4 = mk("demo-unresolved", "0x" + leHexOf(13999999n), 12000, demoHeader(13999999, 12100, 0, 1800, 0n, now), null, "SECP256K1/blake160 (default lock)");
+  r4.state = "unknown-or-invalid";
+  r4.partial = true;
+  r4.depositBlockNumber = 13999999n;
+  r4.missing.push("Deposit block header #13999999 is unavailable from this node.");
+  r4.verification = { checked: true, depositInputFound: false, notes: ["The consumed cell's data is not eight zero bytes, so it was not a deposit cell."] };
+  records.push(r4);
+
+  state.records = records;
+  state.summary = summarise(records);
+  state.scanMeta = { at: new Date().toISOString(), network: "demo", rpcUrl: "none", indexerUrl: "none",
+    tipNumber: "14000000", tipEpoch: "12000 900/1800", incomplete: false, lockScriptsQueried: 0, cellsFound: records.length };
+  state.filter = "all";
+  hideError();
+  renderAll();
+  $("summaryPanel").scrollIntoView({ block: "nearest", behavior: "smooth" });
+}
+
+function leHexOf(v) {
+  var s = "";
+  for (var i = 0; i < 8; i++) s += (Number((v >> BigInt(8 * i)) & 0xffn)).toString(16).padStart(2, "0");
+  return s;
+}
+
+function finishDemoWithdrawing(r, ctx) {
+  var deposited = depositedEpochs(r.depositHeader.epoch, r.withdrawHeader.epoch);
+  var lock = lockEpochsFor(deposited);
+  r.depositedEpochs = deposited;
+  r.lockEpochs = lock;
+  var ms = minimalSince(r.depositHeader.epoch, lock);
+  r.since = ms;
+  r.maturityEpoch = ms.epoch;
+  var cmp = compareEpoch(ctx.tipEpoch, ms.epoch);
+  r.state = cmp >= 0 ? "withdrawing-mature" : "withdrawing-immature";
+  r.mature = cmp >= 0;
+  r.epochsRemaining = cmp >= 0 ? 0n : (ms.epoch.number - ctx.tipEpoch.number) + compareEpochFractionAdjust(ctx.tipEpoch, ms.epoch);
+  r.remainingSeconds = cmp >= 0 ? 0 : epochsToSeconds(r.epochsRemaining);
+  r.matureAt = cmp >= 0 ? null : Number(ctx.tipTimestamp) + r.remainingSeconds * 1000;
+  r.maxWithdraw = maximumWithdraw(r.capacity, r.occupied, r.depositHeader.ar, r.withdrawHeader.ar);
+  r.compensation = r.maxWithdraw - r.capacity;
+  r.estimated = false;
+  r.ageMs = Number(r.withdrawHeader.timestamp - r.depositHeader.timestamp);
+  r.apc = annualised(r.compensation, r.capacity - r.occupied, r.ageMs);
+  r.verification = { checked: true, depositInputFound: true, notes: [] };
+  r.formula = { rule: "maximum_withdraw = occupied + (capacity - occupied) * AR_withdraw / AR_deposit",
+    capacity: r.capacity.toString(), occupied: r.occupied.toString(), counted: (r.capacity - r.occupied).toString(),
+    ar_deposit: r.depositHeader.ar.toString(), ar_reference: r.withdrawHeader.ar.toString(),
+    ar_reference_source: "withdrawal block header (demo)", deposited_epochs: deposited.toString(),
+    lock_epochs: lock.toString(), minimal_since: ms.sinceHex, result: r.maxWithdraw.toString() };
+}
+
+/* =====================================================================
+   19. METHODOLOGY PANEL
+   ===================================================================== */
+
+function renderMethodology() {
+  var h = "";
+  h += "<p style=\"font-size:13px;line-height:1.6;color:var(--text-2);margin-top:6px\">" +
+    "CKB has no accounts. Value sits in immutable cells, and a Nervos DAO position is a live cell carrying the DAO type script. " +
+    "This viewer therefore searches for cells, not for a balance.</p>";
+
+  h += "<h3 style=\"font-size:13px;margin:16px 0 6px\">What one address can and cannot tell you</h3>";
+  h += "<p style=\"font-size:13px;line-height:1.6;color:var(--text-2)\">" +
+    "A CKB address encodes one lock script. The same wallet key usually appears in the args of several different lock scripts — " +
+    "the default SECP256K1/blake160 lock, anyone-can-pay, Omnilock with a secp256k1 auth — so the 20-byte public key hash in those args is " +
+    "treated here as the account identifier. The scanner extracts it, rebuilds each lock in the table around it, and queries every one.</p>";
+  h += "<p style=\"font-size:13px;line-height:1.6;color:var(--text-2)\">" +
+    "That is the honest limit. CKB's standard indexer can match script args exactly or by prefix, but it cannot search args across different code hashes, " +
+    "and there is no documented client-side call that returns every address of a wallet from one address. So this viewer never labels a result " +
+    "wallet-wide. It reports exactly which lock scripts it queried, and invites you to paste any others.</p>";
+
+  h += "<h3 style=\"font-size:13px;margin:16px 0 6px\">How each cell is classified</h3>";
+  h += "<ul style=\"font-size:13px;line-height:1.6;color:var(--text-2);padding-left:18px\">" +
+    "<li>The type script must match the DAO code hash, hash type <em>and</em> empty args exactly. A prefix match is not enough.</li>" +
+    "<li>Eight bytes of zero in the cell data means a deposit cell.</li>" +
+    "<li>Eight bytes holding a positive little-endian block number means a phase-one withdrawing cell. That claim is then checked against history: " +
+    "the transaction that created the cell must consume a DAO deposit cell at the same index, with equal capacity, eight zero bytes of data, " +
+    "and a mined block matching the number stored in the data.</li>" +
+    "<li>Anything that fails those checks, or whose headers cannot be read, is marked unresolved and kept out of every total.</li></ul>";
+
+  h += "<h3 style=\"font-size:13px;margin:16px 0 6px\">The arithmetic</h3>";
+  h += '<div class="formula">maximum_withdraw = occupied + (capacity − occupied) × AR_withdraw ÷ AR_deposit<br><br>' +
+    "AR is the second 8-byte little-endian field of a header's 32-byte dao field.<br>" +
+    "occupied = (8 + lock script bytes + type script bytes + data bytes) × 100,000,000 shannons.<br>" +
+    "deposited_epochs = withdraw.number − deposit.number, plus one if the withdraw fraction exceeds the deposit fraction.<br>" +
+    "lock_epochs = ceil(deposited_epochs ÷ 180) × 180, never below 180.<br>" +
+    "since = 0x20 &lt;&lt; 56 | (length &lt;&lt; 40 | index &lt;&lt; 24 | number) at deposit epoch + lock_epochs.</div>";
+  h += "<p style=\"font-size:13px;line-height:1.6;color:var(--text-2)\">" +
+    "Every one of those is computed with BigInt. No capacity, rate or epoch value passes through a JavaScript number, " +
+    "because 64-bit accumulated rates lose precision above 2⁵³. Dates derived from epochs use the 4-hour target epoch and are marked as estimates; " +
+    "epoch length varies, so they will drift.</p>";
+
+  h += "<h3 style=\"font-size:13px;margin:16px 0 6px\">Sources</h3>";
+  h += "<ul style=\"font-size:12.5px;line-height:1.6;color:var(--text-2);padding-left:18px\">" +
+    "<li>RFC 0023 — Nervos DAO deposit and withdraw</li>" +
+    "<li><span class=\"mono\">ckb-system-scripts/c/dao.c</span> — the on-chain rules this reimplements</li>" +
+    "<li>RFC 0021 — CKB address format; RFC 0024 — genesis script list; RFC 0042 — Omnilock args layout</li>" +
+    "<li>CKB indexer RPC: <span class=\"mono\">get_cells</span>, <span class=\"mono\">script_search_mode</span>, <span class=\"mono\">script_len_range</span></li></ul>";
+
+  h += "<h3 style=\"font-size:13px;margin:16px 0 6px\">Self-test</h3>";
+  h += "<p style=\"font-size:13px;line-height:1.6;color:var(--text-2)\">Runs fixed vectors through the decoding and DAO arithmetic. " +
+    "Also available in the console as <span class=\"mono\">cellLedgerSelfTest()</span>.</p>";
+  h += '<button class="btn" id="selfTestBtn" type="button">Run self-test</button><div id="selfTestOut" style="margin-top:10px"></div>';
+
+  $("methodBody").innerHTML = h;
+  $("selfTestBtn").addEventListener("click", function () {
+    var res = selfTest();
+    var ok = res.failed === 0;
+    $("selfTestOut").innerHTML = '<div class="notice ' + (ok ? "ok" : "bad") + '"><strong>' +
+      res.passed + " passed, " + res.failed + " failed.</strong></div><div class=\"formula\">" +
+      res.results.map(function (r) { return esc((r.ok ? "PASS  " : "FAIL  ") + r.name + (r.ok ? "" : " — " + r.detail)); }).join("<br>") + "</div>";
+  });
+}
+
+/* =====================================================================
+   20. SELF-TEST
+   ===================================================================== */
+
+/* Official vectors from RFC 0021, for the lock
+   code_hash 9bd7e06f…3cce8, hash_type 0x01, args b39bbc0b…6c64 */
+var RFC0021_FULL = "ckb1qzda0cr08m85hc8jlnfp3zer7xulejywt49kt2rr0vthywaa50xwsqdnnw7qkdnnclfkg59uzn8umtfd2kwxceqxwquc4";
+var RFC0021_SHORT = "ckb1qyqt8xaupvm8837nv3gtc9x0ekkj64vud3jqfwyw5v";
+
+/* rebuild an address's checksum under a different bech32 constant, to prove
+   that a full address is not accepted with the wrong checksum variant */
+function reChecksum(addr, constant) {
+  var pos = addr.lastIndexOf("1");
+  var hrp = addr.slice(0, pos);
+  var dataPart = addr.slice(pos + 1);
+  var payload = dataPart.slice(0, dataPart.length - 6);
+  var data = [];
+  for (var i = 0; i < payload.length; i++) data.push(B32_CHARSET.indexOf(payload.charAt(i)));
+  var polymod = b32Polymod(b32HrpExpand(hrp).concat(data).concat([0, 0, 0, 0, 0, 0])) ^ constant;
+  var chk = "";
+  for (var p = 0; p < 6; p++) chk += B32_CHARSET.charAt((polymod >> (5 * (5 - p))) & 31);
+  return hrp + "1" + payload + chk;
+}
+
+function selfTest() {
+  var results = [];
+  function t(name, fn) {
+    try { var d = fn(); results.push({ name: name, ok: d === true, detail: d === true ? "" : String(d) }); }
+    catch (e) { results.push({ name: name, ok: false, detail: String(e && e.message || e) }); }
+  }
+
+  t("little-endian uint64 decoding", function () {
+    if (leU64Hex("0x0000000000000000") !== 0n) return "zero";
+    if (leU64Hex("0x0100000000000000") !== 1n) return "one";
+    if (leU64Hex("0x40e2010000000000") !== 123456n) return "123456 got " + leU64Hex("0x40e2010000000000");
+    if (leU64Hex("0xffffffffffffffff") !== 18446744073709551615n) return "max";
+    return true;
+  });
+
+  t("shannon to CKB formatting", function () {
+    if (fmtCkb(100000000n, 4) !== "1") return fmtCkb(100000000n, 4);
+    if (fmtCkb(102000000000n, 4) !== "1,020") return fmtCkb(102000000000n, 4);
+    if (fmtCkb(123456789n, 8) !== "1.23456789") return fmtCkb(123456789n, 8);
+    if (fmtCkb(1n, 8) !== "0.00000001") return fmtCkb(1n, 8);
+    return true;
+  });
+
+  t("epoch parsing and re-encoding", function () {
+    var raw = "0x" + (((1800n << 40n) | (700n << 24n) | 12345n).toString(16));
+    var e = parseEpoch(raw);
+    if (e.number !== 12345n || e.index !== 700n || e.length !== 1800n) return JSON.stringify({ n: String(e.number), i: String(e.index), l: String(e.length) });
+    if (encodeEpoch(e) !== ((1800n << 40n) | (700n << 24n) | 12345n)) return "re-encode";
+    var z = parseEpoch("0x1");
+    if (z.length !== 1n || z.index !== 0n) return "zero-length epoch not normalised";
+    return true;
+  });
+
+  t("deposit cell data detection", function () {
+    if (!isDepositData("0x0000000000000000")) return "eight zero bytes should be a deposit";
+    if (isDepositData("0x0100000000000000")) return "non-zero must not be a deposit";
+    if (isDepositData("0x00000000000000")) return "seven bytes must not be a deposit";
+    if (isDepositData("0x")) return "empty must not be a deposit";
+    return true;
+  });
+
+  t("withdrawing cell data detection", function () {
+    if (!isWithdrawingData("0x" + leHexOf(11500000n))) return "positive block number should be withdrawing";
+    if (isWithdrawingData("0x0000000000000000")) return "zeros must not be withdrawing";
+    if (isWithdrawingData("0x00000000000000")) return "seven bytes must not be withdrawing";
+    if (leU64Hex("0x" + leHexOf(11500000n)) !== 11500000n) return "round trip";
+    return true;
+  });
+
+  t("outpoint de-duplication", function () {
+    var m = new Map();
+    [["0xaa", 0], ["0xaa", 1], ["0xaa", 0], ["0xbb", 0]].forEach(function (p) {
+      var k = p[0] + ":" + p[1];
+      if (!m.has(k)) m.set(k, 0);
+      m.set(k, m.get(k) + 1);
+    });
+    if (m.size !== 3) return "expected 3 unique outpoints, got " + m.size;
+    if (m.get("0xaa:0") !== 2) return "duplicate not counted";
+    return true;
+  });
+
+  t("occupied capacity of a standard DAO deposit cell", function () {
+    var lock = { codeHash: "0x" + "11".repeat(32), hashType: "type", args: "0x" + "22".repeat(20) };
+    var type = { codeHash: "0x" + "33".repeat(32), hashType: "type", args: "0x" };
+    var occ = occupiedCapacity({ lock: lock, type: type }, "0x0000000000000000");
+    /* 8 capacity + (33+20) lock + 33 type + 8 data = 102 bytes */
+    if (occ !== 102n * SHANNONS_PER_CKB) return "expected 102 CKB, got " + fmtCkb(occ, 8);
+    return true;
+  });
+
+  t("compensation arithmetic against fixed vectors", function () {
+    var capacity = 10200000000n;          /* 102 CKB, entirely occupied */
+    var occupied = 10200000000n;
+    if (maximumWithdraw(capacity, occupied, 1000n, 2000n) !== 10200000000n) return "a fully occupied cell must earn nothing";
+
+    var cap2 = 100000000000n;             /* 1,000 CKB */
+    var occ2 = 10200000000n;              /* 102 CKB */
+    var got = maximumWithdraw(cap2, occ2, 10000000000000000n, 10100000000000000n);
+    var counted = cap2 - occ2;            /* 898 CKB */
+    var want = occ2 + (counted * 10100000000000000n) / 10000000000000000n;
+    if (got !== want) return "got " + got + " want " + want;
+    if (got - cap2 !== 898000000n) return "expected 8.98 CKB of compensation, got " + fmtCkb(got - cap2, 8);
+    return true;
+  });
+
+  t("deposited epochs and lock period follow dao.c", function () {
+    var d = { number: 100n, index: 500n, length: 1800n };
+    if (depositedEpochs(d, { number: 100n, index: 500n, length: 1800n }) !== null) return "equal epochs must be rejected";
+    if (depositedEpochs(d, { number: 99n, index: 900n, length: 1800n }) !== null) return "earlier withdraw must be rejected";
+    if (depositedEpochs(d, { number: 100n, index: 900n, length: 1800n }) !== 1n) return "same epoch, later fraction rounds up to 1";
+    if (depositedEpochs(d, { number: 280n, index: 500n, length: 1800n }) !== 180n) return "exactly 180 epochs";
+    if (depositedEpochs(d, { number: 280n, index: 501n, length: 1800n }) !== 181n) return "fraction rounds up";
+    if (lockEpochsFor(180n) !== 180n) return "180 stays 180";
+    if (lockEpochsFor(181n) !== 360n) return "181 rounds to 360";
+    if (lockEpochsFor(1n) !== 180n) return "1 epoch still costs a full period";
+    if (lockEpochsFor(360n) !== 360n) return "360 stays 360";
+    return true;
+  });
+
+  t("minimal since is an absolute epoch value", function () {
+    var since = minimalSince({ number: 100n, index: 500n, length: 1800n }, 180n);
+    if (since.epoch.number !== 280n) return "epoch number";
+    if ((since.since >> 56n) !== 0x20n) return "the metric flag must be 0x20 for an absolute epoch";
+    if (since.epoch.index !== 500n || since.epoch.length !== 1800n) return "fraction must be carried over from the deposit";
+    return true;
+  });
+
+  t("epoch comparison uses fractions, not floats", function () {
+    var a = { number: 5n, index: 1n, length: 3n };
+    var b = { number: 5n, index: 2n, length: 5n };   /* 5.333 vs 5.4 */
+    if (compareEpoch(a, b) !== -1) return "a should be earlier";
+    if (compareEpoch(b, a) !== 1) return "b should be later";
+    if (compareEpoch(a, { number: 5n, index: 2n, length: 6n }) !== 0) return "1/3 and 2/6 are the same point";
+    return true;
+  });
+
+  t("full address vector from RFC 0021", function () {
+    var d = decodeAddress(RFC0021_FULL, "ckb", "mainnet");
+    if (d.script.codeHash !== "0x9bd7e06f3ecf4be0f2fcd2188b23f1b9fcc88e5d4b65a8637b17723bbda3cce8") return "code hash " + d.script.codeHash;
+    if (d.script.hashType !== "type") return "hash_type 0x01 must decode to type, got " + d.script.hashType;
+    if (d.script.args !== "0xb39bbc0b3673c7d36450bc14cfcdad2d559c6c64") return "args " + d.script.args;
+    if (d.spec !== "bech32m") return "full addresses are bech32m, got " + d.spec;
+    if (d.format !== 0x00) return "format byte";
+    return true;
+  });
+
+  t("deprecated short address vector from RFC 0021", function () {
+    var d = decodeAddress(RFC0021_SHORT, "ckb", "mainnet");
+    if (d.script.codeHash !== "0x9bd7e06f3ecf4be0f2fcd2188b23f1b9fcc88e5d4b65a8637b17723bbda3cce8") return "code hash " + d.script.codeHash;
+    if (d.script.args !== "0xb39bbc0b3673c7d36450bc14cfcdad2d559c6c64") return "args " + d.script.args;
+    if (d.spec !== "bech32") return "short addresses are plain bech32, got " + d.spec;
+    return true;
+  });
+
+  t("both RFC 0021 vectors describe the same lock", function () {
+    var a = decodeAddress(RFC0021_FULL, "ckb", "mainnet").script;
+    var b = decodeAddress(RFC0021_SHORT, "ckb", "mainnet").script;
+    return scriptsEqual(a, b) ? true : "the full and short forms should decode to one lock script";
+  });
+
+  t("a mainnet address is refused under testnet", function () {
+    try {
+      decodeAddress(RFC0021_FULL, "ckt", "testnet");
+      return "should have thrown";
+    } catch (e) { return /prefix/i.test(e.message) ? true : "wrong error: " + e.message; }
+  });
+
+  t("a corrupted checksum is rejected", function () {
+    var broken = RFC0021_FULL.slice(0, 20) + (RFC0021_FULL.charAt(20) === "q" ? "p" : "q") + RFC0021_FULL.slice(21);
+    try {
+      decodeAddress(broken, "ckb", "mainnet");
+      return "should have thrown";
+    } catch (e) { return /checksum/i.test(e.message) ? true : "wrong error: " + e.message; }
+  });
+
+  t("a bech32 checksum on a full address is rejected", function () {
+    /* the payload is valid but re-checksummed under bech32 rather than bech32m */
+    try {
+      decodeAddress(reChecksum(RFC0021_FULL, BECH32_CONST), "ckb", "mainnet");
+      return "a full address must not be accepted with a bech32 checksum";
+    } catch (e) { return /bech32m/i.test(e.message) ? true : "wrong error: " + e.message; }
+  });
+
+  t("account identifier survives the RFC 0021 address", function () {
+    var r = new WalletIdentityResolver({ network: "mainnet", prefix: "ckb", registry: LOCK_REGISTRY.mainnet });
+    var d = r.decodeEnteredAddress(RFC0021_FULL);
+    var ua = r.extractUserArgs(d.script);
+    if (!ua || ua.hex !== "0xb39bbc0b3673c7d36450bc14cfcdad2d559c6c64") return "identifier " + (ua && ua.hex);
+    var scripts = r.resolveWalletScripts();
+    if (scripts.length !== LOCK_REGISTRY.mainnet.length) return "expected one script per lock variant, got " + scripts.length;
+    if (r.coverage !== "user-args") return "coverage should be user-args, got " + r.coverage;
+    var omni = scripts.filter(function (s) { return s.script.codeHash === LOCK_REGISTRY.mainnet[2].codeHash; })[0];
+    if (!omni || omni.script.args !== "0x00b39bbc0b3673c7d36450bc14cfcdad2d559c6c64") return "omnilock args " + (omni && omni.script.args);
+    if (omni.mode !== "prefix") return "omnilock must be searched by prefix so trailing flags still match";
+    return true;
+  });
+
+  t("account identifier extraction from each lock layout", function () {
+    var r = new WalletIdentityResolver({ network: "mainnet", prefix: "ckb", registry: LOCK_REGISTRY.mainnet });
+    var b160 = "0x" + "ab".repeat(20);
+    var sig = r.extractUserArgs({ codeHash: LOCK_REGISTRY.mainnet[0].codeHash, hashType: "type", args: b160 });
+    if (!sig || sig.hex !== b160) return "sighash";
+    var omni = r.extractUserArgs({ codeHash: LOCK_REGISTRY.mainnet[2].codeHash, hashType: "type", args: "0x00" + "ab".repeat(20) + "00" });
+    if (!omni || omni.hex !== b160) return "omnilock auth";
+    var bad = r.extractUserArgs({ codeHash: "0x" + "99".repeat(32), hashType: "type", args: b160 });
+    if (bad !== null) return "an unknown lock must not yield an identifier";
+    return true;
+  });
+
+  var passed = results.filter(function (r) { return r.ok; }).length;
+  var out = { passed: passed, failed: results.length - passed, results: results };
+  try {
+    console.log("Cell Ledger self-test: " + out.passed + " passed, " + out.failed + " failed");
+    results.forEach(function (r) { if (!r.ok) console.warn("FAIL " + r.name + " — " + r.detail); });
+  } catch (e) { /* console may be unavailable */ }
+  return out;
+}
+window.cellLedgerSelfTest = selfTest;
+
+/* =====================================================================
+   21. EVENT BINDING AND INIT
+   ===================================================================== */
+
+function cancelScan() {
+  if (state.controller) { try { state.controller.abort(); } catch (e) {} }
+  state.controller = null;
+  state.running = false;
+  setScanUi(false);
+  showProgress(false);
+}
+
+function clearResults() {
+  cancelScan();
+  state.records = []; state.summary = null; state.scanMeta = null;
+  state.resolver = null; state.warnings = []; state.source = null;
+  state.filter = "all"; state.search = ""; $("searchInput").value = "";
+  ["summaryPanel", "toolbarPanel", "resultsPanel", "identityPanel", "extraPanel"].forEach(function (id) { $(id).hidden = true; });
+  $("positions").innerHTML = "";
+  hideError();
+}
+
+function validateAddressField() {
+  var v = $("addr").value.trim();
+  var box = $("addrStatus");
+  if (!v) { box.hidden = true; box.innerHTML = ""; return; }
+  try {
+    var cfg = readConfig(false);
+    var d = decodeAddress(v, cfg.prefix, cfg.network);
+    var r = new WalletIdentityResolver({ network: cfg.network, prefix: cfg.prefix, registry: cfg.lockTable });
+    var ua = r.extractUserArgs(d.script);
+    box.hidden = false;
+    box.innerHTML = '<div class="notice ok" style="margin:10px 0 0"><strong>' + esc(r.describeLock(d.script)) + "</strong> · " +
+      esc(d.formatLabel) + (ua ? " · account identifier " + esc(midTrunc(ua.hex, 10, 6)) : " · no derivable account identifier") + "</div>";
+  } catch (e) {
+    box.hidden = false;
+    box.innerHTML = '<div class="notice bad" style="margin:10px 0 0">' + esc(e.message) + "</div>";
+  }
+}
+
+function startScan() {
+  if (state.running) return;
+  hideError();
+  var cfg;
+  try { cfg = readConfig(); }
+  catch (e) { showError("Check the settings", e.message, null, "bad"); return; }
+  state.source = "live";
+  var extras = $("extraAddrs").value.split("\n");
+  runScan({ extraAddresses: extras });
+}
+
+async function testConnection() {
+  hideError();
+  var cfg;
+  try { cfg = readConfig(false); }
+  catch (e) { showError("Check the settings", e.message, null, "bad"); return; }
+  var b = $("connBadge");
+  b.className = "badge info"; b.innerHTML = '<span class="dot"></span>Testing';
+  var chain = new RpcClient(cfg.rpcUrl, cfg.timeoutMs);
+  var indexer = cfg.indexerUrl === cfg.rpcUrl ? chain : new RpcClient(cfg.indexerUrl, cfg.timeoutMs);
+  try {
+    var caps = await detectCapabilities(chain, indexer, undefined);
+    state.caps = caps;
+    state.cfg = cfg;
+    renderConnection(caps, cfg);
+    if (!caps.chainOk) showErrorFromException(caps.errors.length ? caps.errors[0].error : new Error("No answer from the chain RPC."));
+  } catch (e) {
+    b.className = "badge bad"; b.innerHTML = '<span class="dot"></span>Unreachable';
+    showErrorFromException(e);
+  }
+}
+
+function bind() {
+  $("scanBtn").addEventListener("click", startScan);
+  $("stickyScan").addEventListener("click", startScan);
+  $("rescanBtn").addEventListener("click", startScan);
+  $("cancelBtn").addEventListener("click", cancelScan);
+  $("clearBtn").addEventListener("click", clearResults);
+  $("demoBtn").addEventListener("click", loadDemo);
+  $("testBtn").addEventListener("click", testConnection);
+  $("exportJson").addEventListener("click", exportJson);
+  $("exportCsv").addEventListener("click", exportCsv);
+
+  $("resetBtn").addEventListener("click", function () {
+    $("network").value = "mainnet";
+    applyNetworkDefaults("mainnet", true);
+    $("indexerUrl").value = "";
+    $("timeoutMs").value = "20000";
+    $("pageSize").value = "100";
+    $("maxPages").value = "40";
+    $("concurrency").value = "6";
+    $("cccUrl").value = "";
+    $("cccEnable").checked = false;
+    saveSettings();
+    renderDepStatus();
+    validateAddressField();
+  });
+
+  $("themeBtn").addEventListener("click", function () {
+    var cur = document.documentElement.getAttribute("data-theme");
+    document.documentElement.setAttribute("data-theme", cur === "light" ? "dark" : "light");
+    saveSettings();
+  });
+
+  $("network").addEventListener("change", function () {
+    applyNetworkDefaults($("network").value, true);
+    saveSettings();
+    validateAddressField();
+  });
+
+  ["prefix", "rpcUrl", "indexerUrl", "timeoutMs", "pageSize", "maxPages", "concurrency",
+   "daoCodeHash", "daoHashType", "daoArgs", "lockTable", "cccUrl"].forEach(function (id) {
+    $(id).addEventListener("change", function () { saveSettings(); validateAddressField(); });
+  });
+  $("cccEnable").addEventListener("change", function () { saveSettings(); renderDepStatus(); });
+
+  var addrTimer = null;
+  $("addr").addEventListener("input", function () {
+    clearTimeout(addrTimer);
+    addrTimer = setTimeout(validateAddressField, 260);
+  });
+  $("addr").addEventListener("keydown", function (e) {
+    if (e.key === "Enter") { e.preventDefault(); startScan(); }
+  });
+
+  $("filterChips").addEventListener("click", function (e) {
+    var b = e.target.closest("button[data-filter]");
+    if (!b) return;
+    state.filter = b.getAttribute("data-filter");
+    renderChips();
+    renderPositions();
+  });
+  $("sortSel").addEventListener("change", function () { state.sort = this.value; renderPositions(); });
+  var searchTimer = null;
+  $("searchInput").addEventListener("input", function () {
+    var v = this.value;
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(function () { state.search = v; renderPositions(); }, 200);
+  });
+
+  document.addEventListener("click", async function (e) {
+    var t = e.target;
+    if (!t || typeof t.closest !== "function") return;
+    var btn = t.closest("button[data-copy]");
+    if (!btn) return;
+    var text = btn.getAttribute("data-copy");
+    var ok = false;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(text); ok = true; }
+    } catch (err) { ok = false; }
+    if (!ok) {
+      var ta = document.createElement("textarea");
+      ta.value = text; ta.setAttribute("readonly", "");
+      ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select();
+      try { ok = document.execCommand("copy"); } catch (err2) { ok = false; }
+      ta.remove();
+    }
+    var old = btn.textContent;
+    btn.textContent = ok ? "Copied" : "Select";
+    btn.classList.toggle("copied", ok);
+    setTimeout(function () { btn.textContent = old; btn.classList.remove("copied"); }, 1400);
+  });
+
+  window.addEventListener("beforeunload", function () { if (state.running) cancelScan(); });
+}
+
+function init() {
+  loadSettings();
+  bind();
+  renderMethodology();
+  renderDepStatus();
+  $("stickyBar").hidden = false;
+  setScanUi(false);
+  validateAddressField();
+}
+
+if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
+else init();
+
+})();
+
+</script>
+</body>
+</html>
