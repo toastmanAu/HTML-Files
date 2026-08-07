@@ -1,0 +1,764 @@
+Build a Nervos CKB Live Block Mining Visualizer
+
+Create a polished, fully functional web application that connects directly to a user-configured Nervos CKB node over WebSocket, subscribes to new tip headers, displays an animated mining sequence while waiting, and shows a special success image whenever a new block arrives.
+
+The project must run as a static HTML application without a backend.
+
+Required Output
+
+Build the complete application using:
+
+* index.html
+* embedded CSS and JavaScript, or optional separate local CSS/JavaScript files
+* no build process
+* no framework
+* no server-side component
+* no placeholder code
+* no pseudocode
+* no TODO comments
+* no omitted implementations
+
+The page must work when served from a simple local static server.
+
+The project root will contain these transparent 1024×1024 PNG assets:
+
+mine_0.png
+mine_1.png
+mine_2.png
+mine_3.png
+mine_4.png
+mine_5.png
+mine_found.png
+
+Do not generate, replace, rename, embed, or modify these images.
+
+⸻
+
+Core Purpose
+
+The application represents the process of waiting for a new Nervos CKB block.
+
+While connected and subscribed:
+
+1. Repeatedly animate mine_0.png through mine_5.png.
+2. Continue looping those six frames while waiting for the next block.
+3. When a new tip-header subscription notification arrives:
+    * immediately stop or pause the mining loop;
+    * display mine_found.png;
+    * animate the result prominently;
+    * update all block and chain information;
+    * keep the success image visible for a configurable but sensible period, approximately 2–4 seconds;
+    * then return to the six-frame mining loop while waiting for the next block.
+
+The animation must not accelerate or create multiple overlapping timers after reconnecting.
+
+⸻
+
+Nervos CKB WebSocket Connection
+
+Use the native browser WebSocket API.
+
+The user must be able to configure:
+
+* protocol: ws:// or wss://
+* host or IP address
+* WebSocket port
+* optional path
+* optional full endpoint override
+
+Provide sensible defaults suitable for a local node, but do not assume that every node uses the same WebSocket port.
+
+An example endpoint may look like:
+
+ws://127.0.0.1:18115
+
+Clearly explain in the interface that the configured CKB node must expose WebSocket RPC and permit access from the browser’s origin.
+
+Provide:
+
+* Connect button
+* Disconnect button
+* Reconnect button
+* Save endpoint button
+* Reset-to-default button
+
+Persist the endpoint settings in localStorage.
+
+Never automatically transmit data anywhere except to the endpoint selected by the user.
+
+⸻
+
+CKB Subscription
+
+After the WebSocket opens, send this JSON-RPC request:
+
+{
+  "id": 1,
+  "jsonrpc": "2.0",
+  "method": "subscribe",
+  "params": ["new_tip_header"]
+}
+
+Do not mark the application as successfully subscribed merely because the socket opened.
+
+The state progression must distinguish:
+
+Disconnected
+Connecting
+Socket Connected
+Subscribing
+Subscribed
+Reconnecting
+Error
+
+Only show Subscribed after the node returns a successful subscription ID.
+
+Store the returned subscription ID.
+
+Handle new-header notifications shaped like:
+
+{
+  "jsonrpc": "2.0",
+  "method": "subscribe",
+  "params": {
+    "result": "...",
+    "subscription": "0x..."
+  }
+}
+
+CKB subscription implementations may return params.result as either:
+
+* an already parsed JavaScript object; or
+* a JSON-encoded string containing the header object.
+
+Implement a safe parser that supports both forms.
+
+Reject malformed notifications gracefully without breaking the socket connection or animation loop.
+
+Confirm that the notification’s subscription identifier matches the currently active subscription when one is available.
+
+⸻
+
+Unsubscribe and Cleanup
+
+Before a deliberate disconnect, attempt to unsubscribe using the active subscription ID.
+
+Use the correct CKB unsubscribe JSON-RPC structure supported by the connected node. If unsubscribe is unsupported or fails, close the WebSocket cleanly anyway.
+
+On disconnect:
+
+* stop animation timers;
+* stop refresh timers;
+* clear pending reconnect timers;
+* clear the active subscription ID;
+* prevent stale WebSocket event handlers from altering current state;
+* close the socket;
+* update the interface immediately.
+
+Use connection-generation IDs or equivalent logic so events from an old socket cannot corrupt a newer connection.
+
+⸻
+
+Initial State and Duplicate Detection
+
+A connection can be established immediately before or during a block change. Avoid treating the initial fetched tip as a newly discovered block.
+
+After connection:
+
+1. Request the current tip header.
+2. Record its hash and block number as the baseline.
+3. Subscribe to new_tip_header.
+4. Treat a notification as a new block only if its block hash differs from the last processed tip hash.
+
+Deduplicate repeated notifications by block hash.
+
+If the same header arrives twice, update neither the new-block counter nor the success animation twice.
+
+Handle a possible chain reorganisation sensibly:
+
+* if a new header has the same or lower height but a different hash, label it as a possible reorg;
+* do not crash;
+* update the displayed canonical tip information;
+* record the event in the local event log.
+
+⸻
+
+JSON-RPC Request Manager
+
+Implement a proper request manager over the single WebSocket connection.
+
+Requirements:
+
+* unique incrementing request IDs;
+* a Map of pending requests;
+* promise-based request handling;
+* per-request timeout;
+* cleanup after success, error, timeout, or disconnect;
+* correct separation between ordinary RPC responses and subscription notifications;
+* readable error messages;
+* no unresolved promises after disconnection.
+
+Create a reusable function similar in purpose to:
+
+rpcCall(method, params, timeoutMs)
+
+Do not open a new WebSocket for every request.
+
+⸻
+
+Chain Statistics
+
+Display as many useful statistics as can be reliably obtained from the connected node.
+
+The application must at minimum show information available directly from the latest tip header:
+
+* block height
+* block hash
+* parent hash
+* block timestamp
+* relative time since the block arrived
+* header version
+* compact target
+* nonce
+* epoch packed value
+* transaction root
+* proposals hash
+* uncles hash
+* DAO field
+
+Also attempt to query appropriate CKB RPC methods for:
+
+* current tip block number
+* current tip header
+* current epoch
+* node local information
+* sync state
+* connected peers
+* transaction pool information
+* blockchain or node information when supported
+
+Potential methods may include:
+
+get_tip_block_number
+get_tip_header
+get_current_epoch
+local_node_info
+sync_state
+get_peers
+tx_pool_info
+
+Do not assume that every node exposes every RPC module.
+
+For every optional query:
+
+* handle “method not found” gracefully;
+* show Unavailable rather than treating it as a fatal error;
+* preserve the active block subscription;
+* avoid repeatedly spamming unsupported methods;
+* remember unsupported methods for the current connection;
+* display the method-specific error in a collapsible diagnostics area.
+
+The live block subscription is the primary feature. Optional statistics must never prevent it from working.
+
+⸻
+
+Hexadecimal and Numeric Parsing
+
+CKB JSON-RPC commonly returns numeric values as hexadecimal strings prefixed by 0x.
+
+Create reusable helpers to:
+
+* safely identify valid CKB hex numbers;
+* convert small values to JavaScript Number only when safe;
+* use BigInt for large values;
+* format large integers with separators;
+* retain and display the original hexadecimal value;
+* avoid precision loss;
+* handle malformed or missing fields.
+
+Do not use:
+
+parseInt(value, 16)
+
+for arbitrarily large blockchain values and then assume the result remains precise.
+
+For timestamps:
+
+* interpret the header timestamp correctly as milliseconds since Unix epoch;
+* show local date and time;
+* show ISO time;
+* show relative age such as 18 seconds ago.
+
+Update relative-time labels once per second without making an RPC call every second.
+
+⸻
+
+Epoch Parsing
+
+The header’s epoch field is a packed CKB epoch representation, not an ordinary decimal epoch number.
+
+Implement a helper that decodes the packed epoch value using BigInt.
+
+Expose:
+
+* epoch number
+* block index within epoch
+* epoch length
+* percentage through the epoch
+* remaining blocks in the epoch
+
+Validate the decoded values before displaying them.
+
+Also compare the decoded tip-header epoch information with get_current_epoch when that RPC method is available.
+
+If the returned structures disagree, show both values and add a non-fatal diagnostic warning instead of silently overwriting one.
+
+⸻
+
+Mining Animation
+
+Use the six images as discrete animation frames:
+
+mine_0.png
+mine_1.png
+mine_2.png
+mine_3.png
+mine_4.png
+mine_5.png
+
+Requirements:
+
+* preload all seven images;
+* retain transparent backgrounds;
+* use one visible <img> element where practical;
+* use requestAnimationFrame or a carefully managed timer;
+* target an adjustable frame duration around 120–220 ms;
+* keep image scaling crisp and proportional;
+* use object-fit: contain;
+* avoid layout shifts between frames;
+* pause the animation when the document is hidden;
+* resume cleanly when visible;
+* respect prefers-reduced-motion.
+
+When reduced motion is enabled:
+
+* show a static mining frame while waiting;
+* show mine_found.png without intense flashing;
+* preserve all application functionality.
+
+Do not rely on CSS background URLs that make asset-load failures difficult to detect.
+
+Show a clear asset warning if one or more sprite files fail to load.
+
+⸻
+
+New Block Presentation
+
+When a genuinely new block notification arrives:
+
+1. Record the arrival time using performance.now() and Date.now().
+2. Stop the normal mining frame progression.
+3. Display mine_found.png.
+4. Show a prominent message such as:
+
+NEW BLOCK FOUND
+
+5. Display:
+    * human-readable height;
+    * shortened hash;
+    * exact arrival time;
+    * block timestamp;
+    * difference between local receipt time and block timestamp.
+6. Apply a tasteful success animation:
+    * scale pulse;
+    * glow;
+    * brief particle-like CSS effect if performant;
+    * no canvas dependency required.
+7. Play no audio unless the user explicitly enables it.
+8. After the success period, return to mining mode.
+
+If another block arrives while the success image is still visible:
+
+* process it immediately;
+* update to the latest block;
+* restart the success-display duration;
+* do not queue stale animations;
+* increment the session block counter once per unique hash.
+
+⸻
+
+Connection Resilience
+
+Implement automatic reconnection with capped exponential backoff.
+
+Suggested retry progression:
+
+1 second
+2 seconds
+4 seconds
+8 seconds
+15 seconds
+30 seconds maximum
+
+Requirements:
+
+* display the next retry delay;
+* provide a Cancel Retry control;
+* reset the delay after a stable successful subscription;
+* add a small random jitter;
+* do not reconnect after a deliberate user disconnect;
+* do not create multiple simultaneous sockets;
+* stop retries while the browser is offline;
+* listen for browser online and offline events;
+* retry when connectivity returns if auto-reconnect is enabled.
+
+Add a user setting to enable or disable automatic reconnection.
+
+Do not create a false “subscribed” state during reconnection.
+
+⸻
+
+Polling Fallback and Health Checks
+
+The main mechanism must remain the WebSocket new_tip_header subscription.
+
+Optionally implement a conservative health check that:
+
+* periodically calls get_tip_block_number over the existing WebSocket;
+* confirms that the connection is responsive;
+* does not replace subscription-based detection during normal operation;
+* uses a sensible interval, such as 20–60 seconds;
+* marks the connection stale after repeated unanswered requests.
+
+Do not create aggressive polling.
+
+Provide an optional fallback mode that polls get_tip_header only when:
+
+* the WebSocket connection works;
+* the node rejects the subscription method;
+* the user explicitly enables fallback polling.
+
+Clearly label fallback polling as different from a live subscription.
+
+⸻
+
+Interface Layout
+
+Create a responsive dashboard with a restrained Nervos/mining aesthetic.
+
+Suggested layout:
+
+Header
+
+* application title
+* compact CKB-themed visual mark made with CSS
+* connection-state badge
+* current endpoint
+* settings button
+
+Main Visualizer
+
+* large mining sprite
+* current animation state
+* Waiting for next block message
+* latest block height
+* latest block hash
+* time since last block
+* session block count
+
+Connection Panel
+
+* protocol
+* host
+* port
+* path
+* generated endpoint preview
+* full endpoint override
+* Connect
+* Disconnect
+* Reconnect
+* Auto-reconnect toggle
+
+Chain Statistics Grid
+
+Use readable cards for:
+
+* tip height
+* current epoch
+* epoch progress
+* latest block time
+* block age
+* compact target
+* peer count
+* sync status
+* initial block download status when available
+* transaction-pool totals when available
+* node version when available
+* session uptime
+* blocks observed this session
+* average observed interval
+* previous observed interval
+
+Latest Header Details
+
+Provide a collapsible or scrollable area containing all header fields.
+
+Long hashes must:
+
+* use a monospace font;
+* wrap safely or truncate visually;
+* preserve the full value in a tooltip or expandable field;
+* include a copy button.
+
+Event Log
+
+Maintain an in-memory log of recent events:
+
+* connection attempt
+* socket opened
+* subscription requested
+* subscription confirmed
+* new block
+* possible reorg
+* RPC error
+* reconnect scheduled
+* disconnected
+
+Requirements:
+
+* newest-first option;
+* timestamps;
+* severity labels;
+* clear-log button;
+* cap at approximately 100–250 entries;
+* never log sensitive browser information.
+
+⸻
+
+Status Semantics
+
+Use distinct visual states:
+
+* grey: disconnected
+* amber: connecting or subscribing
+* green: subscribed
+* blue: fallback polling
+* red: error
+* purple or gold: new block event
+
+Do not rely on colour alone. Include text and icons or CSS shapes.
+
+Show both:
+
+WebSocket: Connected
+Subscription: Active
+
+as separate statuses.
+
+This distinction is mandatory.
+
+⸻
+
+Statistics Refresh Strategy
+
+Use different refresh strategies for different data:
+
+* immediately update header-derived values from subscription notifications;
+* refresh tip and epoch data after each new block;
+* refresh peer, sync, node, and transaction-pool data at a slower configurable interval;
+* pause nonessential refreshes while the document is hidden;
+* prevent concurrent duplicate refreshes;
+* use Promise.allSettled() for independent optional methods;
+* apply request timeouts;
+* do not blank valid old data merely because one refresh fails.
+
+Show a subtle last updated value on each statistics group.
+
+⸻
+
+Security and Browser Limitations
+
+Include a compact help section explaining:
+
+* browsers may block ws:// connections from a page served over HTTPS because of mixed-content rules;
+* wss:// may require a valid TLS setup;
+* a remote node must expose its WebSocket RPC to the browser;
+* firewall and node listening-address settings may block access;
+* reverse proxies must support WebSocket upgrades;
+* exposing a node RPC publicly can create security and resource-abuse risks;
+* users should not expose unrestricted administrative RPC methods to the public internet;
+* local static files may have inconsistent browser-origin behavior, so using a small local static server is recommended.
+
+Do not work around browser security restrictions.
+
+Do not disable TLS validation.
+
+Do not embed a public proxy.
+
+Do not send credentials through query strings.
+
+⸻
+
+Accessibility
+
+Implement:
+
+* semantic HTML;
+* keyboard-accessible controls;
+* visible focus states;
+* proper form labels;
+* status messages with suitable ARIA live regions;
+* sufficient contrast;
+* reduced-motion handling;
+* touch targets at least approximately 44×44 CSS pixels;
+* no information communicated solely by colour.
+
+Do not announce every mining animation frame to screen readers.
+
+Only announce meaningful events such as:
+
+* connected;
+* subscription active;
+* disconnected;
+* error;
+* new block received.
+
+⸻
+
+Mobile Behaviour
+
+The application must work well on phones and tablets.
+
+Requirements:
+
+* mobile-first layout;
+* no horizontal page overflow;
+* stack configuration controls on narrow screens;
+* maintain a large but viewport-safe animation;
+* collapsible advanced statistics;
+* touch-friendly buttons;
+* readable hashes;
+* support portrait and landscape;
+* avoid hover-only controls;
+* adapt to safe-area insets.
+
+⸻
+
+Performance Requirements
+
+* preload local image assets once;
+* do not repeatedly decode or recreate images;
+* avoid unnecessary DOM replacement;
+* avoid high-frequency RPC calls;
+* avoid leaking event listeners;
+* stop all timers on disconnect;
+* cap the event log;
+* batch DOM updates where practical;
+* pause visual work when the page is hidden;
+* avoid expensive full-page animations.
+
+⸻
+
+Error Handling
+
+Display clear actionable messages for:
+
+* invalid endpoint;
+* unsupported URL protocol;
+* connection refused;
+* WebSocket timeout;
+* abnormal socket close;
+* subscription rejected;
+* RPC method unavailable;
+* malformed JSON;
+* malformed nested subscription result;
+* request timeout;
+* missing sprite asset;
+* mixed-content restriction;
+* offline browser;
+* unexpected server response.
+
+Keep technical details available in a diagnostics drawer, but show a plain-language summary in the main interface.
+
+Never allow an uncaught exception in one message handler to terminate future message processing.
+
+Wrap parsing and dispatch logic defensively.
+
+⸻
+
+Testing Support
+
+Include a disabled-by-default developer test panel or clearly separated simulation mode.
+
+Simulation mode must:
+
+* never claim that the node is subscribed;
+* never mix simulated blocks with live-session statistics;
+* allow triggering a fake new-block animation;
+* allow testing disconnect and reconnect UI states;
+* be visibly labelled SIMULATION;
+* not modify the configured endpoint.
+
+This is for verifying animation and layout without waiting for an actual block.
+
+⸻
+
+Acceptance Criteria
+
+The implementation is complete only when all of the following work:
+
+1. The user can enter and save a WebSocket node endpoint.
+2. The page opens a WebSocket connection.
+3. It sends a subscribe request with ["new_tip_header"].
+4. It separately shows socket-connected and subscription-active states.
+5. It correctly captures the returned subscription ID.
+6. It handles subscription results returned as objects or JSON strings.
+7. It cycles continuously through mine_0.png to mine_5.png while waiting.
+8. It displays mine_found.png on every unique new tip header.
+9. It returns to the mining animation after the success display.
+10. It deduplicates notifications by block hash.
+11. It does not create duplicate timers after reconnection.
+12. It displays current block, epoch, timestamp, hash, target, nonce, and related header information.
+13. It decodes hexadecimal numeric values without unsafe precision loss.
+14. It decodes the packed CKB epoch field.
+15. Unsupported optional RPC methods fail gracefully.
+16. Automatic reconnection does not create parallel sockets.
+17. A deliberate disconnect stops reconnect attempts.
+18. Old WebSocket events cannot overwrite a new connection state.
+19. The page works on mobile and desktop.
+20. Missing images and connection failures produce useful error messages.
+21. The browser console remains free of uncaught errors during normal operation.
+22. No backend, API proxy, framework, or build step is required.
+
+⸻
+
+Code Quality
+
+Structure the JavaScript into clear components or classes such as:
+
+EndpointManager
+CkbWebSocketClient
+RpcRequestManager
+SubscriptionController
+MiningAnimator
+ChainStatsController
+EventLog
+UIController
+
+Equivalent architecture is acceptable.
+
+Requirements:
+
+* use strict mode or ES modules;
+* descriptive names;
+* constants for timings and RPC methods;
+* centralized application state;
+* avoid scattered global variables;
+* comments only where logic is genuinely non-obvious;
+* no unnecessary dependencies;
+* no framework-like overengineering;
+* no dead code.
+
+Return the complete contents of every required source file.
+
+Do not return an explanation instead of the implementation.
