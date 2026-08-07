@@ -1,0 +1,756 @@
+Build a polished, mobile-first Nervos DAO portfolio scanner as one complete, self-contained HTML document.
+
+Output only the finished HTML file. Do not include explanations, Markdown fences, setup instructions, pseudocode, TODO comments, omitted sections, placeholders, or additional files.
+
+The application is read-only. It must never request a private key, seed phrase, wallet connection, signature, or transaction approval.
+
+⸻
+
+PURPOSE
+
+Create a browser-based Nervos CKB DAO viewer that allows a user to:
+
+1. Enter one CKB address.
+2. Resolve the wallet’s shared User Args/account identifier from that address.
+3. Discover DAO Cells belonging to the complete wallet/account represented by those User Args, rather than querying only the exact entered address.
+4. Identify all live Nervos DAO positions associated with that wallet.
+5. Distinguish:
+    * active deposit Cells;
+    * phase-one withdrawal Cells;
+    * mature withdrawing Cells;
+    * immature withdrawing Cells.
+6. Calculate and display useful DAO deposit, compensation, maturity and withdrawal information.
+7. Use https://mainnet.ckb.dev/rpc as the default RPC endpoint.
+8. Allow the user to enter another HTTPS endpoint or a local-node endpoint such as:
+    * http://127.0.0.1:8114
+    * http://192.168.1.20:8114
+9. Operate when opened directly as a local HTML file.
+
+The host HTML viewer provides network access and handles local-file CORS restrictions. Do not add a proxy server or backend requirement.
+
+⸻
+
+IMPORTANT CKB MODEL REQUIREMENTS
+
+Do not model CKB as an account-based blockchain.
+
+CKB uses immutable Cells. A DAO position is represented by a live Cell using the Nervos DAO Type Script.
+
+A CKB address encodes a Lock Script. One wallet/account may control multiple addresses or lock variants. The entered address is only the starting point for resolving the wallet’s User Args.
+
+Do not falsely describe every Cell sharing one exact Lock Script as a complete wallet scan.
+
+The implementation must clearly separate:
+
+* entered address;
+* decoded Lock Script;
+* extracted or resolved User Args;
+* discovered wallet lock scripts or account variants;
+* DAO Cells matched to those wallet identifiers.
+
+⸻
+
+SOURCE OF TRUTH
+
+Use the official Nervos CKB documentation and RFCs as the source of truth:
+
+* https://docs.nervos.org/llms.txt
+* https://docs.nervos.org/llms-full.txt
+* https://github.com/nervosnetwork/rfcs/blob/master/rfcs/0023-dao-deposit-withdraw/0023-dao-deposit-withdraw.md
+* https://github.com/nervosnetwork/ckb-system-scripts/blob/master/c/dao.c
+* current CCC documentation and source repository;
+* current CKB JSON-RPC and indexer RPC documentation.
+
+Do not rely on remembered or guessed API names.
+
+Before implementing wallet-wide User Args discovery, verify the current supported mechanism from the relevant CKB/CCC/indexer library or service documentation.
+
+If no standard client-side API can derive every wallet address from one arbitrary CKB address alone, do not fake that capability. Implement the architecture described under User Args Resolution and Honest Fallback.
+
+⸻
+
+ALLOWED TECHNOLOGY
+
+Produce one HTML document containing all application HTML, CSS and JavaScript.
+
+External standard CKB libraries may be loaded from reputable ESM-compatible CDNs when required, including current versions of:
+
+* @ckb-ccc/core;
+* maintained Nervos address or serialization utilities;
+* maintained CKB RPC/indexer helpers.
+
+Prefer CCC for:
+
+* address parsing;
+* Script representation;
+* hexadecimal and numeric conversion;
+* epoch handling where supported;
+* DAO calculation helpers where officially available.
+
+Do not use React, Vue, Angular, Svelte, build tools, Node.js, TypeScript compilation, a backend, private APIs or API keys.
+
+Use native browser APIs and modern ES modules.
+
+Pin external library versions. Do not load an unspecified latest version.
+
+If importing a package from a CDN fails, show a clear dependency error rather than silently returning empty results.
+
+⸻
+
+NETWORK CONFIGURATION
+
+Default network:
+
+* Network: CKB Mainnet
+* Address prefix: ckb
+* RPC URL: https://mainnet.ckb.dev/rpc
+
+Provide a collapsible Connection Settings panel containing:
+
+* RPC URL input;
+* optional separate indexer URL input;
+* network selector:
+    * Mainnet;
+    * Testnet;
+    * Custom;
+* connect/test button;
+* reset-to-default button;
+* connection timeout setting;
+* request page-size setting;
+* status indicator;
+* detected node version where available;
+* detected chain identity or genesis hash where available;
+* current tip block number;
+* current tip epoch;
+* current tip timestamp.
+
+When RPC and indexer use the same endpoint, allow the indexer field to remain blank and inherit the RPC URL.
+
+Persist non-sensitive settings in localStorage.
+
+Never send the entered address or derived identifiers anywhere except the configured CKB RPC/indexer endpoints.
+
+Validate endpoint URLs and support local IPv4 addresses.
+
+For mixed-content failures, explain that an HTTPS-hosted page may be blocked from calling an HTTP node, while a privileged local HTML viewer may permit it.
+
+Use request timeouts with AbortController.
+
+⸻
+
+RPC AND INDEXER BEHAVIOUR
+
+Implement a small JSON-RPC client directly in the page or use a maintained CKB client library.
+
+Support paginated indexer queries. Never assume the first response contains every Cell.
+
+Use stable ordering and continue fetching until:
+
+* the final page is reached;
+* the user cancels;
+* a configurable safety limit is reached.
+
+At minimum, the application may need current equivalents of:
+
+* get_tip_header;
+* get_header;
+* get_header_by_number;
+* get_transaction;
+* get_live_cell;
+* get_cells;
+* get_cells_capacity;
+* get_blockchain_info;
+* local_node_info.
+
+Only call methods that the connected endpoint actually supports.
+
+Detect whether the endpoint exposes:
+
+* chain RPC;
+* indexer RPC;
+* both.
+
+If the selected RPC does not provide indexer methods, display a precise message and allow the user to enter a separate indexer endpoint.
+
+Do not treat an RPC error, unsupported method, timeout or empty response as “zero deposits.”
+
+⸻
+
+NERVOS DAO SCRIPT CONFIGURATION
+
+Use the official Nervos DAO Type Script.
+
+Mainnet:
+
+* code_hash: 0x82d76d1b75fe2fd9a27dfbaa65a039221a380d76c926f378d3f81cf3e7e13f2e
+* hash_type: type
+* args: 0x
+* deployment transaction:
+    0xe2fb199810d49a4d8beec56718ba2593b665db9d52299a0f9e6e75416d73ff5c
+* deployment output index: 0x2
+* dependency type: code
+
+Testnet:
+
+* same DAO code_hash;
+* hash_type: type;
+* args: 0x;
+* deployment transaction:
+    0x8f8c79eb6671709633fe6a46de93c0fedc9c1b8a6527a18d3983879542635c9f
+* output index: 0x2;
+* dependency type: code.
+
+For Custom network mode, expose editable DAO Script fields in an advanced panel.
+
+Validate DAO Cells by the complete Type Script, not merely by data length or transaction shape.
+
+⸻
+
+USER ARGS RESOLUTION AND HONEST FALLBACK
+
+The principal requirement is wallet-wide discovery through User Args, not a single-address lookup.
+
+Implement a WalletIdentityResolver abstraction with clearly separated methods such as:
+
+* decodeEnteredAddress()
+* extractUserArgs()
+* resolveWalletScripts()
+* describeResolutionMethod()
+* getResolutionCoverage()
+
+The implementation must use the currently documented User Args mechanism supported by the selected CKB library, indexer, wallet metadata standard or account service.
+
+Do not invent undocumented RPC methods.
+
+The scan workflow must be:
+
+1. Decode the entered address.
+2. Validate that its network matches the selected network.
+3. Extract the relevant lock information and User Args.
+4. Resolve all discoverable Lock Script variants or address records belonging to those User Args.
+5. Query DAO Cells across the resolved wallet identity.
+6. Deduplicate Cells by tx_hash:index.
+
+Display the actual resolution method used.
+
+Display a coverage badge:
+
+* Wallet-wide — a documented User Args resolver returned wallet/account variants;
+* User Args match — Cells were queried through a documented partial-args/User-Args indexer search;
+* Single lock only — only the exact decoded Lock Script could be queried;
+* Manual address set — the user supplied additional wallet addresses.
+
+If wallet-wide resolution cannot be completed from the entered address and configured endpoints:
+
+* do not silently call the result wallet-wide;
+* show a clear limitation;
+* retain the exact-address result as a visibly labelled fallback;
+* provide an optional textarea allowing the user to paste additional CKB addresses from the same wallet;
+* decode, query and deduplicate those addresses;
+* never claim that missing addresses have been scanned.
+
+Where the indexer supports partial Script-args matching, use the officially defined prefix/exact matching mode appropriate to User Args. Do not broaden a query in a way that can include unrelated owners.
+
+Show the extracted User Args in shortened form with a copy button and an expandable full-value view.
+
+⸻
+
+DAO CELL DISCOVERY
+
+Query live Cells that match both:
+
+* ownership represented by the resolved wallet identity; and
+* the complete Nervos DAO Type Script.
+
+Prefer the narrowest safe indexer search supported by the endpoint.
+
+Possible strategies include:
+
+* query by each resolved Lock Script plus DAO Type Script filtering;
+* query by documented User Args/partial lock-args matching plus DAO Type Script filtering;
+* query by DAO Type Script and locally verify ownership only when the result size is safe and bounded.
+
+Never attempt an unbounded scan of every DAO Cell on mainnet.
+
+For each returned Cell, retain:
+
+* outpoint transaction hash;
+* output index;
+* block number;
+* transaction index if available;
+* capacity;
+* occupied capacity;
+* lock Script;
+* type Script;
+* output data;
+* creation transaction;
+* creation block header;
+* deposit reference transaction/header when applicable;
+* withdrawal transaction/header when applicable.
+
+Limit concurrent RPC requests to a reasonable number, such as four to eight.
+
+Provide scan progress:
+
+* wallet identities resolved;
+* Cell pages fetched;
+* candidate DAO Cells found;
+* transactions loaded;
+* headers loaded;
+* records processed.
+
+Include a cancel button.
+
+Cache duplicate transaction and header requests during the current scan.
+
+⸻
+
+DAO STATE CLASSIFICATION
+
+Classify each live DAO Cell according to RFC 0023.
+
+A DAO deposit Cell normally has:
+
+* Nervos DAO Type Script;
+* exactly eight bytes of Cell data;
+* data equal to eight zero bytes.
+
+A phase-one withdrawal Cell normally has:
+
+* the same DAO Type Script;
+* eight-byte little-endian Cell data containing the block number of the original deposit transaction;
+* a transaction/header relationship identifying the deposit and withdrawal phases.
+
+Do not classify solely from whether data is zero. Validate all relevant structure available from the RFC and transaction history.
+
+Represent states as:
+
+* deposited;
+* withdrawing-immature;
+* withdrawing-mature;
+* unknown-or-invalid.
+
+If a record cannot be fully verified because a historical transaction or header is unavailable, retain it as partially resolved and show the missing dependency.
+
+⸻
+
+DAO CALCULATIONS
+
+Use integer-safe arithmetic with BigInt.
+
+Never calculate capacities, DAO accumulated rates, epoch values or compensation with JavaScript Number where precision could be lost.
+
+Use:
+
+* 1 CKB = 100,000,000 Shannons;
+* little-endian decoding for DAO Cell data;
+* exact RFC 0023 formulas;
+* occupied-capacity treatment required by the DAO rules;
+* deposit and withdrawing block headers’ DAO fields;
+* correct epoch-number/index/length arithmetic;
+* the required DAO lock period and maturity rules;
+* proper rounding and integer division.
+
+Prefer an official, maintained CCC DAO helper if it exactly implements the current RFC. Still keep the UI-facing calculation inputs visible for auditability.
+
+For each active deposit, calculate where possible:
+
+* original deposited capacity;
+* occupied capacity;
+* interest-bearing counted capacity;
+* deposit block number;
+* deposit epoch;
+* deposit timestamp;
+* current age in blocks;
+* current age in epochs;
+* estimated current maximum withdraw capacity;
+* estimated accumulated compensation;
+* estimated effective annualized return;
+* next valid phase-one withdrawal epoch;
+* approximate date/time of the next withdrawal window;
+* whether phase one can currently be submitted.
+
+For each withdrawing Cell, calculate where possible:
+
+* original deposit block;
+* original deposit epoch;
+* withdrawal block;
+* withdrawal epoch;
+* deposit duration;
+* locked-in maximum withdraw capacity;
+* locked-in compensation;
+* required since value;
+* maturity epoch;
+* remaining epochs;
+* approximate remaining time;
+* whether phase two is currently mature.
+
+Clearly label time estimates as estimates because epoch duration varies.
+
+Do not display compensation estimates as guaranteed financial returns.
+
+Where current-tip data is insufficient for an exact value, state which value is estimated.
+
+⸻
+
+DAO SUMMARY
+
+At the top of the results view, show summary cards for:
+
+* total live DAO positions;
+* active deposit count;
+* withdrawing count;
+* mature withdrawal count;
+* total deposited principal;
+* total estimated withdrawable capacity;
+* total estimated or locked-in compensation;
+* next upcoming maturity;
+* wallet scan coverage.
+
+Do not combine unknown or unresolved Cells into exact financial totals without marking them separately.
+
+Show an additional warning count for partially resolved or invalid DAO candidates.
+
+⸻
+
+POSITION LIST
+
+Render each DAO position as a mobile-friendly card.
+
+Each card must include:
+
+* status badge;
+* principal;
+* compensation;
+* estimated/locked-in total;
+* outpoint;
+* source address or lock variant;
+* deposit date;
+* deposit epoch;
+* withdrawal date and epoch when applicable;
+* next withdrawal window or maturity;
+* progress indicator;
+* percentage through the current lock period;
+* copy buttons;
+* expandable technical details.
+
+Technical details should include:
+
+* capacity in Shannons;
+* occupied capacity;
+* Cell data;
+* full Lock Script;
+* full Type Script;
+* transaction hashes;
+* output indexes;
+* block hashes;
+* block numbers;
+* raw epoch values;
+* decoded epoch number/index/length;
+* header DAO values used in calculations;
+* formula inputs;
+* formula result;
+* resolution source.
+
+Add explorer links only when using a known network:
+
+Mainnet:
+
+* transaction: https://explorer.nervos.org/transaction/{txHash}
+* block: https://explorer.nervos.org/block/{blockHash}
+
+Testnet:
+
+* transaction: https://pudge.explorer.nervos.org/transaction/{txHash}
+* block: https://pudge.explorer.nervos.org/block/{blockHash}
+
+Open explorer links in a new tab with safe rel attributes.
+
+⸻
+
+SORTING AND FILTERING
+
+Provide:
+
+Filters:
+
+* all;
+* active deposits;
+* withdrawing;
+* mature;
+* immature;
+* unresolved.
+
+Sort options:
+
+* largest principal;
+* largest compensation;
+* newest deposit;
+* oldest deposit;
+* next maturity;
+* status.
+
+Add a local text search over:
+
+* transaction hash;
+* outpoint;
+* address;
+* User Args;
+* lock args.
+
+Show result counts after filtering.
+
+⸻
+
+EXPORT
+
+Allow exporting the resolved portfolio as:
+
+* JSON;
+* CSV.
+
+The export must include:
+
+* scan timestamp;
+* selected network;
+* RPC/indexer endpoints;
+* entered address;
+* extracted User Args;
+* wallet resolution method;
+* coverage level;
+* resolved lock scripts;
+* DAO position details;
+* calculation inputs;
+* calculated values;
+* unresolved warnings.
+
+Do not export private information because none should ever be collected.
+
+⸻
+
+USER INTERFACE
+
+Create a polished technical-dashboard aesthetic suitable for mobile and desktop.
+
+Required sections:
+
+* compact header with a CSS-created CKB/DAO icon;
+* address input;
+* scan button;
+* connection status;
+* connection settings panel;
+* wallet identity/resolution panel;
+* scan progress panel;
+* summary cards;
+* filter and sort toolbar;
+* DAO position list;
+* empty state;
+* error panel;
+* methodology/about panel.
+
+Mobile requirements:
+
+* minimum 44px touch targets;
+* no horizontal page overflow;
+* responsive cards;
+* readable hashes with wrapping or middle truncation;
+* safe-area support;
+* sticky scan action where useful;
+* correctly handled on-screen keyboard;
+* compact technical details;
+* dark and light colour-scheme support.
+
+Use system fonts only.
+
+Use CSS variables.
+
+Respect prefers-reduced-motion.
+
+Do not use decorative animations that interfere with scanning or readability.
+
+⸻
+
+INPUT VALIDATION
+
+Validate:
+
+* non-empty address;
+* valid CKB address encoding;
+* supported address type;
+* selected-network prefix;
+* RPC URL syntax;
+* RPC response shape;
+* User Args extraction;
+* Script fields;
+* hexadecimal values;
+* DAO output-data length;
+* transaction/header availability.
+
+A ckb... address must not be accepted under Testnet without an explicit network change.
+
+A ckt... address must not be treated as Mainnet.
+
+Show precise, actionable errors.
+
+Never expose raw stack traces as the primary error message. Include technical details in an expandable diagnostics area.
+
+⸻
+
+ERROR STATES
+
+Handle at least:
+
+* invalid address;
+* network mismatch;
+* unavailable User Args resolver;
+* exact-lock fallback;
+* RPC offline;
+* RPC timeout;
+* indexer unavailable;
+* unsupported RPC method;
+* malformed RPC response;
+* rate limiting;
+* partial pagination failure;
+* missing historical transaction;
+* missing block header;
+* invalid DAO Cell data;
+* failed dependency import;
+* request cancelled;
+* no DAO positions found.
+
+Distinguish these empty-result possibilities:
+
+* wallet-wide scan succeeded and found no DAO Cells;
+* only one Lock Script was scanned and found no DAO Cells;
+* scan failed before completion;
+* some wallet variants could not be resolved.
+
+⸻
+
+PERFORMANCE AND RELIABILITY
+
+Implement:
+
+* paginated queries;
+* bounded concurrency;
+* request timeout;
+* cancellation;
+* transaction/header caching;
+* duplicate outpoint removal;
+* progressive rendering;
+* scan safety limits;
+* retry controls;
+* deterministic sorting;
+* stale-scan protection so an older request cannot overwrite a newer one.
+
+Do not freeze the interface while processing large result sets.
+
+Use a unique JSON-RPC request ID for every request.
+
+Ensure buttons cannot accidentally launch multiple overlapping scans.
+
+⸻
+
+SECURITY AND PRIVACY
+
+This application is read-only.
+
+Display a clear notice:
+
+“Never enter a private key or seed phrase. This viewer requires only a public CKB address.”
+
+Do not include:
+
+* wallet signing;
+* withdrawal submission;
+* transaction construction;
+* private-key fields;
+* seed phrase fields;
+* analytics;
+* trackers;
+* advertisements;
+* remote logging;
+* hidden telemetry.
+
+Escape all user-controlled content before inserting it into the DOM.
+
+Do not use unsafe innerHTML with RPC-returned or user-supplied strings.
+
+Only access the endpoints explicitly configured by the user, apart from pinned library imports and deliberate explorer links.
+
+⸻
+
+DEMO AND TESTABILITY
+
+Include a built-in Demo Data mode that uses realistic but clearly fictional DAO records without making network calls.
+
+Demo mode must exercise:
+
+* active deposited Cell;
+* immature withdrawing Cell;
+* mature withdrawing Cell;
+* unresolved Cell;
+* summary totals;
+* sorting;
+* filtering;
+* JSON export;
+* CSV export;
+* mobile layouts.
+
+Keep demo records clearly labelled and never mix them with live scan results.
+
+Organize the JavaScript into understandable sections or classes:
+
+* constants;
+* utility functions;
+* RPC client;
+* endpoint capability detection;
+* address decoder;
+* wallet identity/User Args resolver;
+* Cell indexer;
+* DAO parser;
+* DAO calculator;
+* scan controller;
+* state store;
+* renderer;
+* export functions;
+* event bindings.
+
+Expose a small development self-test function in the console that verifies:
+
+* little-endian uint64 decoding;
+* Shannon-to-CKB formatting;
+* epoch parsing;
+* DAO deposit-data detection;
+* withdrawing-data detection;
+* deduplication;
+* compensation arithmetic using fixed test vectors.
+
+Do not claim self-tests passed unless they actually execute successfully.
+
+⸻
+
+ACCEPTANCE CRITERIA
+
+The final HTML is acceptable only if:
+
+1. It opens as one HTML file.
+2. It defaults to https://mainnet.ckb.dev/rpc.
+3. It accepts local RPC URLs.
+4. It decodes and validates CKB addresses.
+5. It attempts documented User Args wallet resolution.
+6. It clearly states whether coverage is wallet-wide or exact-lock only.
+7. It never mislabels a single-address scan as a wallet scan.
+8. It queries all paginated matching live Cells.
+9. It matches the complete DAO Type Script.
+10. It distinguishes deposited and withdrawing DAO Cells.
+11. It retrieves required transactions and headers.
+12. It performs DAO arithmetic using BigInt.
+13. It displays principal, compensation, state and maturity.
+14. It handles partial data honestly.
+15. It works on phone-sized screens.
+16. It exports JSON and CSV.
+17. It never requests signing authority or private credentials.
+18. It contains no unfinished code or placeholder behaviour.
+
+Return only the complete HTML document.
