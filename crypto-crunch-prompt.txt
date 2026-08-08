@@ -1,0 +1,912 @@
+FRONTIER CODING PROMPT — “CRYPTO CRUNCH” MOBILE MATCH-3 GAME
+
+Your objective is to generate a single, fully functional, self-contained HTML file containing HTML, CSS, and modern ES6 JavaScript that implements a polished mobile-first match-3 puzzle game titled:
+
+CRYPTO CRUNCH
+
+The gameplay should be inspired by classic match-3 games such as Candy Crush, Bejeweled, and similar tile-swapping puzzle games, but the visual identity must be original and cryptocurrency themed.
+
+Instead of candy/gems, every board piece is a cryptocurrency logo.
+
+The game must be designed primarily for mobile phones and touchscreen play, while remaining usable with a mouse on desktop.
+
+External standard JavaScript libraries and remote image assets are allowed where useful, but the finished product must remain a single HTML file.
+
+Do NOT output pseudocode, incomplete functions, TODO comments, placeholder interfaces, or explanations.
+
+Return only the complete HTML document.
+
+⸻
+
+1. CORE GAME
+
+Build a complete match-3 game using an approximately:
+
+* 8 × 8 board
+* responsive square grid
+* portrait mobile-first interface
+
+A player swaps two orthogonally adjacent crypto tiles.
+
+A swap is valid only when it produces a matching line of at least:
+
+* 3 identical logos horizontally, or
+* 3 identical logos vertically
+
+When a match occurs:
+
+1. matched pieces animate and disappear
+2. pieces above fall downward
+3. empty positions are filled with new crypto pieces
+4. resulting automatic matches are detected
+5. chain reactions continue until the board stabilizes
+
+Invalid swaps should briefly animate and then reverse automatically.
+
+The board must never become logically corrupted during cascades or rapid touchscreen input.
+
+Lock user input while major board-resolution animations are occurring.
+
+⸻
+
+2. CRYPTOCURRENCY PIECES
+
+Source cryptocurrency logos from:
+
+https://cryptologos.cc/
+
+Use approximately 20 cryptocurrencies in the game’s asset catalogue.
+
+Include at minimum:
+
+1. Bitcoin — BTC
+2. Ethereum — ETH
+3. Solana — SOL
+4. Nervos Network — CKB
+5. Cardano — ADA
+6. XRP — XRP
+7. Dogecoin — DOGE
+8. Litecoin — LTC
+9. Avalanche — AVAX
+10. Polkadot — DOT
+11. Chainlink — LINK
+12. Polygon — POL/MATIC
+13. Cosmos — ATOM
+14. Stellar — XLM
+15. Tron — TRX
+16. BNB — BNB
+17. Uniswap — UNI
+18. Near Protocol — NEAR
+19. Internet Computer — ICP
+20. Shiba Inu — SHIB
+
+Use the appropriate CryptoLogos.cc image URLs wherever practical.
+
+Maintain a centralized JavaScript crypto definition table such as:
+
+{
+  id,
+  name,
+  ticker,
+  logoUrl
+}
+
+so currencies can easily be added, removed, or changed.
+
+If an individual CryptoLogos.cc asset fails to load, display a graceful fallback tile consisting of:
+
+* ticker symbol
+* colored circular background
+* no broken-image icon
+
+Do not allow missing network assets to break gameplay.
+
+⸻
+
+3. ACTIVE TILE SET
+
+Although approximately 20 currencies should exist in the asset catalogue, do not necessarily use all 20 simultaneously on an ordinary board.
+
+Use a smaller active set appropriate to match-3 gameplay, for example:
+
+* early levels: 6 crypto types
+* intermediate levels: 7
+* later levels: 8
+
+This preserves reasonable matching probability.
+
+Different levels may rotate currencies from the larger catalogue.
+
+Bitcoin, Ethereum, Solana, and Nervos Network should appear prominently throughout the game.
+
+⸻
+
+4. TOUCH CONTROLS
+
+Touch interaction is a first-class requirement.
+
+Support BOTH:
+
+Swipe control
+
+Touch a crypto tile and swipe:
+
+* left
+* right
+* up
+* down
+
+to exchange it with the adjacent piece.
+
+Tap-to-swap
+
+Player may alternatively:
+
+1. tap a tile
+2. tap an adjacent tile
+
+to attempt a swap.
+
+Clearly highlight the currently selected tile.
+
+Desktop mouse interaction should work using the same tap/click logic.
+
+Prevent:
+
+* browser scrolling while interacting with the board
+* accidental text selection
+* double-triggered touch/click events
+* pinch zoom interfering with active gameplay where reasonably possible
+
+Use appropriate:
+
+touch-action
+user-select
+
+settings.
+
+⸻
+
+5. MATCH DETECTION
+
+Implement robust board logic.
+
+Detect:
+
+* horizontal matches
+* vertical matches
+* simultaneous intersecting matches
+* cascades
+* overlapping matches
+
+A matched tile should only be counted once per resolution step even if it participates in multiple lines.
+
+Avoid naïve algorithms that mutate the board while scanning.
+
+Recommended logical sequence:
+
+1. inspect complete board
+2. identify all matched coordinates
+3. classify special-piece creation
+4. remove matches
+5. apply gravity
+6. generate replacements
+7. detect cascades
+8. repeat until stable
+
+⸻
+
+6. SPECIAL CRYPTO PIECES
+
+Implement special pieces generated from larger matches.
+
+Match of 4
+
+Create a Mining Rig / powered crypto tile.
+
+Visually distinguish it using:
+
+* glow
+* lightning border
+* mining/power visual
+
+When matched or activated, it clears either:
+
+* its entire row, or
+* its entire column
+
+depending on the orientation of the original four-piece match.
+
+⸻
+
+Match of 5
+
+Create a powerful:
+
+BLOCKCHAIN CORE
+
+special tile.
+
+It may visually resemble:
+
+* glowing blockchain node
+* crypto coin surrounded by interconnected nodes
+* animated digital core
+
+Swapping it with a normal crypto tile should remove every tile of that cryptocurrency type from the board.
+
+⸻
+
+T / L Matches
+
+Create a:
+
+HASH BOMB
+
+When activated, clear a 3×3 area around the special tile.
+
+⸻
+
+7. COMBOS
+
+Support cascades and display escalating combo feedback.
+
+Examples:
+
+* COMBO ×2
+* COMBO ×3
+* MEGA CRUNCH!
+* HASH CASCADE!
+* BLOCKCHAIN BREAKER!
+
+Combo multipliers should increase scoring.
+
+Show floating score numbers around destroyed tiles.
+
+⸻
+
+8. GAME MODES / LEVELS
+
+Create a lightweight level progression system.
+
+Provide approximately 20 playable levels generated from configuration data rather than writing 20 completely different game engines.
+
+Level objectives may include:
+
+Score Target
+
+Reach a specified score within a move limit.
+
+Crypto Collection
+
+Collect a specified number of particular currencies.
+
+Example:
+
+Collect:
+12 BTC
+10 CKB
+8 ETH
+
+Clear the Board
+
+Clear special marked cells underneath tiles.
+
+Combo Objective
+
+Trigger a specified number of special crypto pieces.
+
+⸻
+
+9. MOVES
+
+Most levels should use a fixed move count.
+
+Example:
+
+MOVES
+24
+
+Every valid player swap consumes one move.
+
+Do not consume a move for an invalid swap.
+
+Automatic cascades do not consume moves.
+
+⸻
+
+10. BOARD GENERATION
+
+Initial boards should:
+
+* avoid immediate accidental matches where practical
+* contain at least one valid move
+* remain playable
+
+After cascades finish, determine whether any valid swaps remain.
+
+If no legal moves exist:
+
+display:
+
+NETWORK RESHUFFLE
+
+and shuffle the existing pieces into a valid configuration.
+
+Animate the reshuffle.
+
+Do not force the user to restart due solely to an unsolvable board.
+
+⸻
+
+11. SCORE SYSTEM
+
+Implement a clear scoring system.
+
+Example baseline:
+
+* 3-match: 100 points
+* 4-match: 250 points
+* 5-match: 500 points
+* special activation: bonus
+* cascades: multiplier
+
+Display the current score prominently.
+
+Also display the level target.
+
+⸻
+
+12. USER INTERFACE
+
+Create a modern crypto-themed UI.
+
+The top area should display:
+
+CRYPTO CRUNCH
+
+with a smaller subtitle such as:
+
+Match. Mine. Moon.
+
+Below it display a compact HUD containing:
+
+* Level
+* Score
+* Target
+* Moves
+
+Keep the actual board as large as possible.
+
+Mobile screen space is precious.
+
+The board should normally consume most of the usable viewport.
+
+⸻
+
+13. VISUAL STYLE
+
+Use a polished crypto / blockchain aesthetic.
+
+Suggested palette:
+
+* very dark navy / charcoal background
+* subtle purple/blue gradients
+* cyan highlights
+* occasional gold accent
+* illuminated crypto tiles
+
+Use:
+
+* subtle glassmorphism
+* soft shadows
+* glowing borders
+* animated highlights
+* restrained particles
+
+Avoid making the UI visually cluttered.
+
+Tiles should appear like physical or digital tokens rather than simply raw square images.
+
+Each crypto logo should sit inside a polished circular or rounded token.
+
+⸻
+
+14. NERVOS NETWORK
+
+Give Nervos Network / CKB special visual attention without making it mechanically stronger than other currencies.
+
+When a CKB match occurs, occasionally use thematic feedback such as:
+
+CKB CRUNCH!
+
+or:
+
+CELL COMBO!
+
+The actual gameplay balance must remain identical to other normal currencies.
+
+⸻
+
+15. ANIMATIONS
+
+Use performant CSS transforms and/or Canvas animation.
+
+Include:
+
+* tile swap animation
+* tile falling
+* tile spawning
+* matched tile pulse
+* destruction animation
+* special tile glow
+* score popups
+* combo banners
+* board reshuffle animation
+* level completion animation
+
+Animations should feel responsive rather than slow.
+
+Aim for approximately:
+
+* swap: 120–200 ms
+* match pulse: 100–180 ms
+* fall: 150–300 ms
+
+Use transforms rather than repeatedly altering expensive layout properties wherever practical.
+
+⸻
+
+16. PARTICLE EFFECTS
+
+Add lightweight visual particles when crypto pieces are destroyed.
+
+Possible effects:
+
+* digital fragments
+* sparks
+* tiny blockchain nodes
+* glowing squares
+* coin-like particles
+
+Large combinations should produce stronger effects.
+
+Keep mobile GPU performance in mind.
+
+⸻
+
+17. SOUND
+
+Implement sound effects using the Web Audio API.
+
+Do not require external audio files.
+
+Create synthesized sounds for:
+
+* tile selection
+* swap
+* invalid swap
+* normal match
+* larger match
+* cascade
+* special activation
+* level complete
+* level failed
+
+Pitch should rise slightly with consecutive combo depth.
+
+Audio must only begin after user interaction due to browser autoplay restrictions.
+
+Provide a visible:
+
+🔊 / 🔇
+
+toggle.
+
+Save sound preference in localStorage.
+
+⸻
+
+18. HAPTICS
+
+Where available, use:
+
+navigator.vibrate()
+
+sparingly.
+
+Examples:
+
+normal match:
+
+navigator.vibrate(20)
+
+special activation:
+
+navigator.vibrate([30, 30, 60])
+
+Never make vibration mandatory.
+
+⸻
+
+19. LEVEL COMPLETE
+
+When the objective is achieved, stop ordinary input and show an animated results panel containing:
+
+BLOCK CONFIRMED!
+
+Display:
+
+* level completed
+* final score
+* moves remaining
+* stars earned
+* best score
+
+Buttons:
+
+* NEXT LEVEL
+* REPLAY
+* LEVEL SELECT
+
+Award 1–3 stars based on performance.
+
+⸻
+
+20. LEVEL FAILED
+
+When the player runs out of moves without completing the objective, show:
+
+TRANSACTION FAILED
+
+or:
+
+OUT OF GAS!
+
+Display:
+
+* final score
+* target
+* retry button
+
+Do NOT implement paid lives, advertising, purchases, or deliberately frustrating wait timers.
+
+⸻
+
+21. START SCREEN
+
+Create an attractive title screen.
+
+Prominent:
+
+CRYPTO CRUNCH
+
+Subtitle:
+
+Match. Mine. Moon.
+
+Show a decorative animated mini-board or several floating crypto tokens.
+
+Buttons:
+
+PLAY
+
+LEVELS
+
+Optional:
+
+HOW TO PLAY
+
+Display best progress from localStorage.
+
+⸻
+
+22. LEVEL SELECT
+
+Create a vertically scrollable or compact level grid.
+
+Display levels as blockchain-style nodes.
+
+For example:
+
+01 — 02 — 03 — 04
+     |
+05 — 06 — 07
+
+or a simpler responsive button grid.
+
+Show:
+
+* unlocked levels
+* locked levels
+* star rating
+* best score
+
+Completing a level unlocks the next.
+
+Persist progress using localStorage.
+
+⸻
+
+23. LOCAL STORAGE
+
+Persist:
+
+* highest unlocked level
+* best level scores
+* stars per level
+* sound preference
+* overall highest score
+
+Use safe JSON parsing and sensible defaults.
+
+Provide a settings option:
+
+RESET PROGRESS
+
+Require confirmation before erasing data.
+
+⸻
+
+24. HOW TO PLAY
+
+Include a compact help overlay explaining:
+
+* swipe adjacent crypto logos
+* match 3 or more identical coins
+* match 4 to create mining-powered pieces
+* match 5 to create Blockchain Core
+* complete the objective before moves reach zero
+
+Keep instructions touchscreen friendly.
+
+⸻
+
+25. RESPONSIVE MOBILE DESIGN
+
+Target smartphones first.
+
+The game should work particularly well around viewport sizes such as:
+
+* 360×640
+* 390×844
+* 393×852
+* 430×932
+
+The game must also scale correctly to tablets and desktop browsers.
+
+Use:
+
+<meta name="viewport"
+content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+
+Respect safe areas where useful with:
+
+env(safe-area-inset-top)
+env(safe-area-inset-bottom)
+
+Avoid requiring vertical scrolling during gameplay.
+
+The board should dynamically calculate an appropriate tile size based on available viewport dimensions.
+
+⸻
+
+26. PERFORMANCE
+
+Target smooth operation on ordinary modern phones.
+
+Avoid:
+
+* hundreds of unnecessary DOM updates per frame
+* excessive blur filters
+* huge particle counts
+* large duplicated images
+* expensive continuous layout recalculation
+
+Preload crypto logos before gameplay.
+
+Reuse DOM elements where practical.
+
+Pause unnecessary animation when:
+
+document.hidden === true
+
+⸻
+
+27. ASSET FAILURE HANDLING
+
+Because cryptocurrency logos are remotely loaded:
+
+* preload them
+* detect failed loads
+* provide ticker-based fallback graphics
+* never prevent the game from starting because one logo cannot load
+
+The game should remain functional offline after page load to the greatest degree possible, subject to remote crypto logo caching.
+
+⸻
+
+28. ARCHITECTURE
+
+Keep game logic structured and understandable.
+
+Suggested conceptual components:
+
+CryptoCrunchGame
+Board
+Tile
+MatchResolver
+SpecialPieceResolver
+LevelManager
+InputController
+AudioManager
+ParticleSystem
+StorageManager
+UIManager
+
+These do not necessarily need to be literal ES6 classes, but the implementation should maintain clear separation of responsibilities.
+
+Centralize game constants.
+
+Avoid scattered magic numbers.
+
+⸻
+
+29. BOARD STATE
+
+Keep the authoritative board state in JavaScript.
+
+Do not rely on the visual DOM arrangement as the game state.
+
+For example:
+
+board[row][column]
+
+should contain logical tile objects.
+
+Visual elements should render from this state.
+
+This is essential for reliable:
+
+* swaps
+* cascades
+* special tiles
+* board resets
+* reshuffles
+
+⸻
+
+30. IMPORTANT EDGE CASES
+
+Correctly handle:
+
+* player touching during cascades
+* rapidly repeated taps
+* diagonal swipe attempts
+* finger leaving the board
+* orientation changes
+* invalid swap rollback
+* simultaneous horizontal and vertical matches
+* special piece interactions
+* special pieces included in cascades
+* no-move boards
+* remote logo load failure
+* game restart during animation
+* level completion during a cascade
+
+Do not allow duplicate event handlers after restarting levels.
+
+⸻
+
+31. OPTIONAL SPECIAL-PIECE COMBINATIONS
+
+If implementation quality allows, support interactions between special pieces.
+
+Examples:
+
+Mining Rig + Mining Rig:
+
+* clear one row and one column
+
+Mining Rig + Hash Bomb:
+
+* larger cross-shaped destruction
+
+Blockchain Core + normal crypto:
+
+* remove all instances of that crypto
+
+Blockchain Core + Blockchain Core:
+
+* spectacular full-board clear
+
+These interactions should create strong visual/audio feedback.
+
+⸻
+
+32. CRYPTO FLAVOUR TEXT
+
+Use occasional crypto-themed UI terminology while keeping everything understandable.
+
+Examples:
+
+NETWORK RESHUFFLE
+BLOCK CONFIRMED
+HASH CASCADE
+MINING BONUS
+CELL COMBO
+CHAIN REACTION
+MEGA CRUNCH
+TO THE MOON!
+
+Do not overwhelm the player with cryptocurrency jargon.
+
+Gameplay readability is more important.
+
+⸻
+
+33. ORIGINALITY REQUIREMENT
+
+The project may be mechanically inspired by classic match-3 games, but do not reproduce:
+
+* Candy Crush graphics
+* Candy Crush characters
+* Candy Crush sound effects
+* Candy Crush level maps
+* King branding
+* copyrighted UI artwork
+
+Create an original cryptocurrency-themed presentation.
+
+⸻
+
+34. FINAL QUALITY REQUIREMENT
+
+This must feel like a small finished mobile game, not a technical match-3 demonstration.
+
+Prioritize:
+
+1. reliable match/swap logic
+2. touchscreen responsiveness
+3. satisfying cascades
+4. strong mobile layout
+5. polished crypto-logo presentation
+6. responsive animation
+7. sound and feedback
+8. persistent progression
+
+Before producing the answer, mentally verify the following full gameplay loop:
+
+Launch
+→ Start Screen
+→ Select Level
+→ Board Generated
+→ Player Swipes
+→ Valid Match
+→ Tiles Removed
+→ Gravity
+→ New Tiles
+→ Cascade
+→ Score Updated
+→ Objective Updated
+→ More Moves
+→ Win/Lose Condition
+→ Results
+→ Progress Saved
+→ Next Level
+
+Every stage must actually function.
+
+Do not truncate the code because of output length.
+
+Do not provide explanatory prose.
+
+Do not wrap the result in multiple files.
+
+Do not use placeholders.
+
+Return exactly one complete executable:
+
+<!DOCTYPE html>
+...
+</html>
